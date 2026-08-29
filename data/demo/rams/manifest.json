@@ -1,0 +1,144 @@
+{
+  "pack": "rams",
+  "origin": {
+    "place": "Rameswaram",
+    "lat": 9.29,
+    "lon": 79.31
+  },
+  "bbox": {
+    "south": 8.3,
+    "west": 78.2,
+    "north": 10.4,
+    "east": 80.5
+  },
+  "retrieved_at": "2026-08-29T11:05:00.312118+00:00",
+  "data_mode": "DEMO — cached from a live retrieval; NOT live observations",
+  "variables": {
+    "sst": {
+      "synthetic": false,
+      "source_id": "erddap-noaa",
+      "source_name": "NOAA CoastWatch/PFEL ERDDAP",
+      "dataset_id": "jplMURSST41",
+      "unit": "degree_C",
+      "spatial_resolution": "0.01°",
+      "valid_time": "2026-08-29 11:05:00.312118+00:00",
+      "license": "public domain (NOAA)"
+    },
+    "chlorophyll": {
+      "synthetic": false,
+      "source_id": "erddap-noaa",
+      "source_name": "NOAA CoastWatch/PFEL ERDDAP",
+      "dataset_id": "nesdisVHNSQchlaDaily",
+      "unit": "mg m^-3",
+      "spatial_resolution": "0.0375°",
+      "valid_time": "2026-08-29 11:05:00.312118+00:00",
+      "license": "public domain (NOAA)"
+    },
+    "wave_height": {
+      "synthetic": false,
+      "source_id": "erddap-pacioos",
+      "source_name": "PacIOOS ERDDAP",
+      "dataset_id": "ww3_global",
+      "unit": "meters",
+      "spatial_resolution": "0.5°",
+      "valid_time": "2026-08-29 11:05:00.312118+00:00",
+      "license": "PacIOOS ERDDAP"
+    },
+    "wave_period": {
+      "synthetic": false,
+      "source_id": "erddap-pacioos",
+      "source_name": "PacIOOS ERDDAP",
+      "dataset_id": "ww3_global",
+      "unit": "second",
+      "spatial_resolution": "0.5°",
+      "valid_time": "2026-08-29 11:05:00.312118+00:00",
+      "license": "PacIOOS ERDDAP"
+    },
+    "wave_direction": {
+      "synthetic": false,
+      "source_id": "erddap-pacioos",
+      "source_name": "PacIOOS ERDDAP",
+      "dataset_id": "ww3_global",
+      "unit": "degrees",
+      "spatial_resolution": "0.5°",
+      "valid_time": "2026-08-29 11:05:00.312118+00:00",
+      "license": "PacIOOS ERDDAP"
+    },
+    "current_u": {
+      "synthetic": false,
+      "source_id": "erddap-noaa-nws",
+      "source_name": "NOAA CoastWatch National ERDDAP",
+      "dataset_id": "noaacwBLENDEDNRTcurrentsDaily",
+      "unit": "m/s",
+      "spatial_resolution": "0.25°",
+      "valid_time": "2026-08-29 11:05:00.312118+00:00",
+      "license": "public domain (NOAA)"
+    },
+    "current_v": {
+      "synthetic": false,
+      "source_id": "erddap-noaa-nws",
+      "source_name": "NOAA CoastWatch National ERDDAP",
+      "dataset_id": "noaacwBLENDEDNRTcurrentsDaily",
+      "unit": "m/s",
+      "spatial_resolution": "0.25°",
+      "valid_time": "2026-08-29 11:05:00.312118+00:00",
+      "license": "public domain (NOAA)"
+    },
+    "wind_u": {
+      "synthetic": false,
+      "source_id": "erddap-pacioos",
+      "source_name": "PacIOOS ERDDAP",
+      "dataset_id": "ncep_global",
+      "unit": "m s-1",
+      "spatial_resolution": "0.5°",
+      "valid_time": "2026-08-29 11:05:00.312118+00:00",
+      "license": "PacIOOS ERDDAP"
+    },
+    "wind_v": {
+      "synthetic": false,
+      "source_id": "erddap-pacioos",
+      "source_name": "PacIOOS ERDDAP",
+      "dataset_id": "ncep_global",
+      "unit": "m s-1",
+      "spatial_resolution": "0.5°",
+      "valid_time": "2026-08-29 11:05:00.312118+00:00",
+      "license": "PacIOOS ERDDAP"
+    }
+  },
+  "weather": {
+    "wind": {
+      "source_id": "open-meteo",
+      "source_name": "Open-Meteo",
+      "license": "CC-BY 4.0",
+      "synthetic": false
+    },
+    "waves": {
+      "source_id": "open-meteo",
+      "source_name": "Open-Meteo",
+      "license": "CC-BY 4.0",
+      "synthetic": false
+    }
+  },
+  "boundaries": {
+    "imbl": {
+      "source_id": "marine-regions",
+      "source_name": "Flanders Marine Institute (VLIZ), Marine Regions",
+      "license": "CC-BY 4.0",
+      "doi": "10.14284/632",
+      "url": "https://www.marineregions.org/",
+      "line_ids": [
+        1306,
+        1311
+      ],
+      "synthetic": false
+    },
+    "demo_mpa": {
+      "source_id": "orca-demo",
+      "synthetic": true
+    },
+    "demo_land_mask": {
+      "source_id": "orca-demo",
+      "synthetic": true
+    }
+  }
+}

@@ -26,7 +26,7 @@ import pandas as pd
 import xarray as xr
 
 from app.providers.base import OceanField, OceanDataProvider
-from app.providers.erddap_provider import _canonicalize, _unit_of
+from app.providers.erddap_provider import _canonicalize, _select_nearest_time, _unit_of
 from app.schemas.common import (
     BoundingBox,
     Measurement,
@@ -43,6 +43,10 @@ _VARIABLE_FILES = {
     "current_u": "ocean/current_u.nc",
     "current_v": "ocean/current_v.nc",
     "wave_height": "ocean/wave_height.nc",
+    "wave_period": "ocean/wave_period.nc",
+    "wave_direction": "ocean/wave_direction.nc",
+    "wind_u": "ocean/wind_u.nc",
+    "wind_v": "ocean/wind_v.nc",
 }
 
 
@@ -110,9 +114,11 @@ class DemoOceanProvider(OceanDataProvider):
             return OceanField.empty(variable, "unknown", prov, bbox)
         da = ds[var_name]
         if "latitude" in da.dims and "longitude" in da.dims:
-            lat_slice = slice(bbox.south, bbox.north)
-            lon_slice = slice(bbox.west, bbox.east)
-            da = da.sel(latitude=lat_slice, longitude=lon_slice)
+            # ERDDAP grids often come with DESCENDING latitude; a label slice
+            # (south, north) on a descending axis selects nothing — normalize
+            # to ascending before subsetting
+            da = da.sortby("latitude").sortby("longitude")
+            da = da.sel(latitude=slice(bbox.south, bbox.north), longitude=slice(bbox.west, bbox.east))
         unit = _unit_of(da)
         if unit == "unknown":
             unit = (self._manifest(str(pack)).get("variables") or {}).get(variable, {}).get("unit", "unknown")
@@ -130,7 +136,8 @@ class DemoOceanProvider(OceanDataProvider):
             )
         da = field.data
         if "time" in da.dims and da.sizes.get("time", 0) > 0:
-            da = da.sel(time=valid_time, method="nearest") if da.sizes["time"] > 1 else da.isel(time=0)
+            # _select_nearest_time: pandas 3 raises on naive-vs-aware compares
+            da = _select_nearest_time(da, valid_time) if da.sizes["time"] > 1 else da.isel(time=0)
         value = float(np.asarray(da.sel(latitude=lat, longitude=lon, method="nearest").values).squeeze())
         prov = field.provenance
         prov.valid_time = (

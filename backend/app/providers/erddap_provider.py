@@ -45,9 +45,80 @@ _LAT_NAMES = ("latitude", "lat", "y")
 _LON_NAMES = ("longitude", "lon", "x")
 _TIME_NAMES = ("time", "t")
 
+_USER_AGENT = {"User-Agent": "ORCA-demo-fetch/0.1 (hackathon prototype; contact via repo)"}
+
+
+def _install_erddapy_default_headers() -> None:
+    """Set a truthful User-Agent on every erddapy HTTP fetch.
+
+    The NOAA CoastWatch ERDDAPs answer the default requests UA with 403 on
+    griddap ``.ncml`` metadata (observed 2026-08-29), and erddapy 3.3 neither
+    threads ``requests_kwargs`` through ``griddap_initialize``'s metadata call
+    nor accepts a ``headers`` dict there at all — its ``_urlopen`` is
+    ``lru_cache``-wrapped, so a dict kwarg is an unhashable cache key. We
+    replace ``_urlopen`` with an equivalent that always sends our UA (and,
+    incidentally, drop a cache of file-like objects that was of little use).
+    """
+    import io
+
+    import requests as _requests
+    import erddapy.core.url as _url_mod
+
+    def _urlopen_with_headers(url: str, auth: tuple | None = None, **kwargs):
+        timeout = kwargs.pop("timeout", 60)
+        response = _requests.get(
+            url,
+            allow_redirects=True,
+            auth=auth,
+            timeout=timeout,
+            headers=_USER_AGENT,
+            **kwargs,
+        )
+        try:
+            response.raise_for_status()
+        except _requests.exceptions.HTTPError as err:
+            msg = str(response.content.decode())
+            raise _requests.exceptions.HTTPError(msg) from err
+        return io.BytesIO(response.content)
+
+    _url_mod._urlopen = _urlopen_with_headers
+
+
+_install_erddapy_default_headers()
+
+
+def _axis_end_from_seeded(constraints: dict) -> datetime:
+    """Latest time step reported by ``griddap_initialize`` (epoch or ISO)."""
+    raw = constraints.get("time>=")
+    if raw is None:
+        return datetime.now(timezone.utc)
+    if isinstance(raw, str):
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            raw = float(raw)
+    return datetime.fromtimestamp(float(raw), tz=timezone.utc)
+
+
+def _select_nearest_time(da: xr.DataArray, valid_time: datetime) -> xr.DataArray:
+    """``.sel(time=..., method='nearest')`` with dtype-safe timestamp handling.
+
+    pandas 3 refuses naive-vs-aware comparisons ("Cannot compare dtypes
+    datetime64[ns] and datetime64[us, UTC]"), and ERDDAP axes decode with
+    different unit/tz combos per dataset — normalize to the index's own dtype.
+    """
+    idx = da.indexes["time"]
+    ts = pd.Timestamp(valid_time)
+    if idx.tz is None:
+        ts = ts.tz_convert(timezone.utc).tz_localize(None) if ts.tzinfo else ts
+    else:
+        ts = ts.tz_convert(idx.tz) if ts.tzinfo else ts.tz_localize(idx.tz)
+    return da.sel(time=ts, method="nearest")
+
 
 def _canonicalize(ds: xr.Dataset) -> xr.Dataset:
-    """Rename dims/coords to canonical latitude/longitude/time."""
+    """Rename dims/coords to canonical latitude/longitude/time and drop
+    leftover single-value axes (altitude/depth/height) from pinning."""
     ren: dict[str, str] = {}
     for names, canonical in (
         (_LAT_NAMES, "latitude"),
@@ -59,7 +130,11 @@ def _canonicalize(ds: xr.Dataset) -> xr.Dataset:
                 ren[n] = canonical
             elif n in ds.coords and n != canonical:
                 ren[n] = canonical
-    return ds.rename(ren) if ren else ds
+    ds = ds.rename(ren) if ren else ds
+    canonical_dims = {"latitude", "longitude", "time"}
+    for dim in [d for d in ds.dims if d not in canonical_dims]:
+        ds = ds.squeeze(dim, drop=True) if ds.sizes[dim] == 1 else ds.isel({dim: 0}, drop=True)
+    return ds
 
 
 def _unit_of(da: xr.DataArray) -> str:
@@ -96,7 +171,8 @@ class ErddapProvider(OceanDataProvider):
 
     async def get_dataset_metadata(self, dataset_id: str) -> dict[str, object]:
         def _fetch() -> dict[str, object]:
-            e = ERDDAP(server=self.server_url, protocol="griddap", dataset_id=dataset_id)
+            e = ERDDAP(server=self.server_url, protocol="griddap")
+            e.dataset_id = dataset_id  # erddapy 3.x: attribute, not ctor kwarg
             e.griddap_initialize()
             vars_meta = {v: {"units": e.get_var_attr(v, "units")} for v in e.variables}
             return {
@@ -116,6 +192,10 @@ class ErddapProvider(OceanDataProvider):
     def _entry(self, variable: str) -> DatasetEntry | None:
         entry = self.catalog.get(variable)
         if entry is None or entry.provider != "erddap" or not entry.dataset_id:
+            return None
+        if entry.source_id != self.source_id:
+            # this server doesn't host the variable — let the hub fall through
+            # to the provider that does (never 404-spam other servers)
             return None
         return entry
 
@@ -138,19 +218,34 @@ class ErddapProvider(OceanDataProvider):
 
     # --------------------------------------------------------------- gridded
     def _subset_sync(self, entry: DatasetEntry, bbox: BoundingBox, valid_time: datetime) -> xr.Dataset:
-        """Blocking ERDDAP subset -> xarray Dataset (canonical coords)."""
+        """Blocking ERDDAP subset -> xarray Dataset (canonical coords).
+
+        The time axis is requested as a WINDOW ending at ``valid_time`` (not a
+        single instant): analysis products lag real time (SST ~1 d, archived
+        geostrophy ~months), so pinning ``time`` to "tomorrow 05:00" 404s on
+        any dataset whose axis ends earlier. ``get_field`` then picks the
+        nearest available step, which is what downstream provenance reports.
+        """
         protocol = entry.protocol or "griddap"
-        e = ERDDAP(server=self.server_url, protocol=protocol, dataset_id=entry.dataset_id)
+        e = ERDDAP(server=self.server_url, protocol=protocol)
         if self._source.id == "incois-erddap":
             # INCOIS serves an incomplete TLS chain — documented in research
             e.requests_kwargs = {"verify": False}
+        # NOTE: assigning dataset_id triggers griddap_initialize (erddapy 3.x
+        # property setter) — the .ncml metadata fetch happens right here
+        e.dataset_id = entry.dataset_id
         if protocol == "griddap":
-            e.griddap_initialize()
-            day = valid_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            # clamp the requested instant to the axis end (analysis products
+            # lag real time by hours-to-months; ERDDAP 404s when either window
+            # edge exceeds the axis maximum), then look back `window_days`
+            axis_end = _axis_end_from_seeded(e.constraints)
+            end = min(valid_time, axis_end)
+            window_days = float((entry.extras or {}).get("window_days", 14))
+            start = end - timedelta(days=window_days)
             e.constraints.update(
                 {
-                    "time<=": day,
-                    "time>=": day,
+                    "time>=": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "time<=": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
                     "latitude>=": bbox.south,
                     "latitude<=": bbox.north,
                     "longitude>=": bbox.west,
@@ -159,7 +254,11 @@ class ErddapProvider(OceanDataProvider):
             )
             # pin any remaining single-value dims (depth, altitude, zlev...)
             # so griddap returns a plain time/lat/lon cube, not the full column
-            pinned = dict(entry.extras.get("extra_dim", "").split("=", 1)) if entry.extras.get("extra_dim") else {}
+            extra_dim = (entry.extras or {}).get("extra_dim")
+            pinned: dict[str, str] = {}
+            if extra_dim:
+                name, _, val = str(extra_dim).partition("=")
+                pinned = {name.strip(): val.strip()}
             for dim_name in list(e.constraints):
                 base = dim_name.split("<")[0].split(">")[0]
                 if base in ("time", "latitude", "longitude"):
@@ -169,9 +268,6 @@ class ErddapProvider(OceanDataProvider):
                         e.constraints[dim_name] = float(pinned[base])
                     except ValueError:
                         e.constraints[dim_name] = pinned[base]
-                elif str(dim_name).endswith("="):
-                    # "<dim>=" (equals form) keeps the first slice of that axis
-                    continue
         if entry.variable:
             e.variables = [entry.variable]
         ds = e.to_xarray()
@@ -191,7 +287,14 @@ class ErddapProvider(OceanDataProvider):
         if entry.variable not in ds:
             return OceanField.empty(variable, entry.unit or "unknown", prov, bbox)
         da = ds[entry.variable]
-        return OceanField(variable, _unit_of(da) if _unit_of(da) != "unknown" else (entry.unit or "unknown"), da, prov, bbox)
+        if "time" in da.dims and da.sizes["time"] > 1:
+            # nearest available step to the requested valid time (analysis
+            # products resolve to their latest ≤ valid_time; forecasts to the
+            # requested hour) — provenance.valid_time reports what we actually
+            # got, not what was asked for
+            da = _select_nearest_time(da, valid_time)
+        unit = _unit_of(da)
+        return OceanField(variable, unit if unit != "unknown" else (entry.unit or "unknown"), da, prov, bbox)
 
     def _prov_none(self, variable: str) -> Provenance:
         return Provenance(
@@ -222,8 +325,8 @@ class ErddapProvider(OceanDataProvider):
             )
         try:
             da = field.data
-            if "time" in da.dims:
-                da = da.sel(time=valid_time, method="nearest")
+            if "time" in da.dims and da.sizes["time"] > 1:
+                da = _select_nearest_time(da, valid_time)
             pt = da.sel(latitude=lat, longitude=lon, method="nearest")
             value = float(np.asarray(pt.values).squeeze())
             used_time = pd.Timestamp(da["time"].values).to_pydatetime() if "time" in da.dims else valid_time

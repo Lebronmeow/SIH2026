@@ -44,7 +44,7 @@ class DatasetEntry(BaseModel):
     variable: str | None = None  # variable name inside the dataset
     unit: str | None = None
     spatial_resolution: str | None = None
-    extras: dict[str, str] = Field(default_factory=dict)
+    extras: dict[str, str | int | float] = Field(default_factory=dict)
 
 
 class DatasetCatalog:

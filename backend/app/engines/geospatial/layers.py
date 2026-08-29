@@ -68,8 +68,10 @@ def load_layers_from_dir(directory: Path) -> list[BoundaryLayer]:
                 logger.warning("bad geometry in %s: %s", file, exc)
                 continue
             try:
-                kind = BoundaryKind(props.get("kind", "restricted"))
-                authority = Authority(props.get("authority", "reference"))
+                # case-insensitive on kind/authority so layers authored by
+                # different producers (fetch script, WDPA importer) all load
+                kind = BoundaryKind(str(props.get("kind", "restricted")).lower())
+                authority = Authority(str(props.get("authority", "reference")).lower())
             except ValueError as exc:
                 logger.warning("bad kind/authority in %s: %s", file, exc)
                 continue

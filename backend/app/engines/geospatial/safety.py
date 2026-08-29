@@ -20,6 +20,7 @@ from shapely.ops import transform as shp_transform
 from shapely.prepared import prep
 
 from app.config.registry import Authority
+from app.config.settings import DataMode
 from app.engines.geospatial.layers import BoundaryKind, BoundaryLayer
 from app.schemas.common import LatLon, Warning as OrcaWarning
 
@@ -99,11 +100,43 @@ class GeospatialSafetyEngine:
     @classmethod
     def from_directory(cls, directory) -> "GeospatialSafetyEngine":
         """Build the engine from GeoJSON layers in a directory (demo/ops mode)."""
+        return cls.from_directories([directory])
+
+    @classmethod
+    def from_directories(cls, directories) -> "GeospatialSafetyEngine":
+        """Build the engine from every GeoJSON layer found in the given dirs.
+
+        Demo packs carry their own ``boundaries/`` (self-contained pack), so
+        callers pass settings.boundaries_dir *plus* each pack's boundaries dir;
+        layer ids are de-duplicated (first wins) in case of overlap.
+        """
         from pathlib import Path as _Path
 
         from app.engines.geospatial.layers import load_layers_from_dir
 
-        return cls(load_layers_from_dir(_Path(directory)))
+        layers: list[BoundaryLayer] = []
+        seen: set[str] = set()
+        for d in directories:
+            d = _Path(d)
+            if not d.exists():
+                continue
+            for layer in load_layers_from_dir(d):
+                if layer.id in seen:
+                    continue
+                seen.add(layer.id)
+                layers.append(layer)
+        return cls(layers)
+
+    @classmethod
+    def from_settings(cls) -> "GeospatialSafetyEngine":
+        """Engine over settings.boundaries_dir + every demo pack's boundaries."""
+        from app.config.settings import get_settings
+
+        settings = get_settings()
+        dirs = [settings.boundaries_dir]
+        if settings.data_mode == DataMode.DEMO and settings.demo_dir.exists():
+            dirs.extend(p / "boundaries" for p in settings.demo_dir.iterdir() if p.is_dir())
+        return cls.from_directories(dirs)
 
     def _projector(self, lon: float, lat: float) -> Transformer:
         crs = utm_crs_for(lon, lat)

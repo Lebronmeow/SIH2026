@@ -83,6 +83,22 @@ _SOURCES: Final[tuple[DataSource, ...]] = (
         tags=("ocean", "erddap", "sst", "chlorophyll"),
     ),
     DataSource(
+        id="erddap-noaa-nws",
+        name="NOAA CoastWatch National ERDDAP",
+        organization="NOAA",
+        homepage="https://coastwatch.noaa.gov/erddap/index.html",
+        access=AccessKind.OPEN,
+        authority=Authority.DESCRIPTIVE,
+        license="Public domain (work of the U.S. Government)",
+        license_verified=True,
+        base_url="https://coastwatch.noaa.gov/erddap",
+        notes=(
+            "Verified live: noaacwBLENDEDNRTcurrentsDaily (0.25° blended NRT ocean currents, "
+            "u_current/v_current, current to within ~2 days)."
+        ),
+        tags=("ocean", "erddap", "currents"),
+    ),
+    DataSource(
         id="erddap-pacioos",
         name="PacIOOS ERDDAP",
         organization="University of Hawai‘i / NOAA IOOS",

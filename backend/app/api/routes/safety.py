@@ -12,7 +12,7 @@ from app.schemas.common import LatLon
 
 router = APIRouter(prefix="/api", tags=["safety"])
 
-_safety = GeospatialSafetyEngine.from_directory(get_settings().boundaries_dir)
+_safety = GeospatialSafetyEngine.from_settings()
 _routing: RouteOptimizationEngine | None = None
 
 

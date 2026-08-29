@@ -68,7 +68,7 @@ class FishingAdvisoryWorkflow:
         self.resolver = resolver or _PR()
         self.hub = hub or OceanDataHub()
         self.evaluator = evaluator or ZoneEvaluationService(
-            self.hub, GeospatialSafetyEngine.from_directory(self.settings.boundaries_dir)
+            self.hub, GeospatialSafetyEngine.from_settings()
         )
         self.explainer = explainer or TemplateExplainer()
 

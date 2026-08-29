@@ -1,0 +1,51 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       79.2,
+       8.9
+      ],
+      [
+       79.45,
+       9.350000000000001
+      ],
+      [
+       79.8,
+       9.4
+      ],
+      [
+       80.0,
+       9.100000000000001
+      ],
+      [
+       79.85,
+       8.75
+      ],
+      [
+       79.5,
+       8.700000000000001
+      ],
+      [
+       79.2,
+       8.9
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "kind": "mpa",
+    "authority": "reference",
+    "hard_constraint": true,
+    "source_id": "orca-demo",
+    "name": "Gulf of Mannar Marine National Park (SYNTHETIC demo polygon)",
+    "notes": "SYNTHETIC approximation for demo mode only — NOT the official WDPA boundary. Replace via ProtectedAreaProvider (WDPA) at runtime."
+   }
+  }
+ ]
+}

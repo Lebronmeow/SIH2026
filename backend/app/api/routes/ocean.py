@@ -20,7 +20,7 @@ _HUB: OceanDataHub | None = None
 def get_hub() -> OceanDataHub:
     global _HUB
     if _HUB is None:
-        _HUB = OceanDataHub(get_settings())
+        _HUB = OceanDataHub()
     return _HUB
 
 

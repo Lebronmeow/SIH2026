@@ -81,11 +81,18 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 45.0
 
     # -------------------------------------------------------------- Bhashini
+    # Voice/NMT is OPTIONAL: without a key the product stays English-only and
+    # the UI hides the mic. serviceIds are per-tenant model picks from the
+    # ULCA/Dhruva catalog — configuration, never Python literals.
     bhashini_enabled: bool = False
     bhashini_api_key: str | None = None
     bhashini_pipeline_url: str = (
         "https://dhruva-api.bhashini.gov.in/services/pipeline/v2/run"
     )
+    bhashini_asr_service_id: str | None = None
+    bhashini_nmt_service_id: str | None = None
+    bhashini_tts_service_id: str | None = None
+    bhashini_timeout_seconds: float = 30.0
 
     # ------------------------------------------------------------- providers
     protected_planet_api_key: str | None = None

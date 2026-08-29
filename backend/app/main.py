@@ -7,7 +7,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import advisory, health, ocean, safety
+from app.api.routes import advisory, health, ocean, safety, voice
 from app.config.registry import registry
 from app.config.settings import get_settings
 
@@ -41,6 +41,7 @@ def create_app() -> FastAPI:
     app.include_router(advisory.router)
     app.include_router(ocean.router)
     app.include_router(safety.router)
+    app.include_router(voice.router)
 
     logger.info(
         "ORCA starting: mode=%s llm=%s sources=%d",

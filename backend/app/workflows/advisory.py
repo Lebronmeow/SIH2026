@@ -35,6 +35,7 @@ from app.agents.explainer import TemplateExplainer
 from app.config.settings import get_settings
 from app.providers.hub import OceanDataHub
 from app.schemas.common import LatLon
+from app.schemas.common import Warning as OrcaWarning
 from app.schemas.recommendation import ParsedQuery, RecommendationResponse, WorkflowTrace
 from app.services.place_resolver import PlaceResolver
 from app.services.zone_evaluator import ZoneEvaluationService
@@ -92,6 +93,7 @@ class FishingAdvisoryWorkflow:
 
         # 3 — Verification (integrity + hard-constraint re-check)
         problems = self._verify(response)
+        problems += self._check_origin_coastal(response)
         if problems:
             trace.steps.append("verification: " + "; ".join(problems))
         else:
@@ -140,7 +142,13 @@ class FishingAdvisoryWorkflow:
         return LatLon(lat=parsed.origin.lat, lon=parsed.origin.lon)
 
     def _verify(self, response: RecommendationResponse) -> list[str]:
-        """Verification Agent — deterministic re-checks (hardened in Phase 8)."""
+        """Verification Agent — deterministic re-checks (hardened in Phase 8).
+
+        Checks the *integrity of the response artifact itself*: every
+        evidence claim must trace to a real measurement with provenance,
+        every available measurement must carry a unit, the recommended zone
+        must not violate hard constraints, and demo mode must be disclosed.
+        """
         problems: list[str] = []
         rec = response.recommended
         if rec is not None:
@@ -150,6 +158,34 @@ class FishingAdvisoryWorkflow:
                 problems.append(f"recommended zone {rec.candidate.id} fails geofence")
             if response.route and response.route.blocked_by_constraints:
                 problems.append("route to recommended zone violates hard constraints")
+
+        # evidence → measurement cross-check: a claim that names a variable
+        # must match (variable, value, unit) on the recommended zone, and any
+        # claim about a *measured* value must carry provenance
+        measured = {m.variable: m for m in (rec.measurements if rec else [])}
+        for ev in response.evidence:
+            if ev.measurement_variable is None:
+                continue
+            m = measured.get(ev.measurement_variable)
+            if m is None:
+                problems.append(f"evidence claims {ev.measurement_variable} but the recommended zone has no such measurement")
+                continue
+            if ev.value is not None and m.value is not None and abs(ev.value - m.value) > 1e-6:
+                problems.append(f"evidence value for {ev.measurement_variable} ({ev.value}) != measurement ({m.value})")
+            if ev.unit and m.unit and ev.unit != m.unit:
+                problems.append(f"evidence unit for {ev.measurement_variable} ({ev.unit!r}) != measurement ({m.unit!r})")
+            if ev.value is not None and ev.provenance is None and m.provenance is None:
+                problems.append(f"evidence for {ev.measurement_variable} has no provenance")
+
+        # unit audit: an *available* measurement without a unit is not presentable
+        for m in (rec.measurements if rec else []):
+            if m.value is not None and not m.unit:
+                problems.append(f"measurement {m.variable} has a value but no unit")
+
+        # integrity of the validity/provenance envelope
+        if response.recommended is not None and response.valid_time is None:
+            problems.append("recommendation without a valid_time")
+
         if response.demo_banner_required and not any(
             w.code == "DEMO_MODE" for w in response.warnings
         ):
@@ -157,6 +193,32 @@ class FishingAdvisoryWorkflow:
         if response.insufficient and response.recommended is not None:
             problems.append("INSUFFICIENT_DATA set but a zone is still recommended")
         return problems
+
+    def _check_origin_coastal(self, response: RecommendationResponse) -> list[str]:
+        """The resolved departure place must be at/near water (Phase 8).
+
+        The origin is the launch point, so being inside the land layer means
+        place resolution went wrong — disclosed as a critical warning; the
+        offshore ring itself is still checked by the hard constraints.
+        """
+        origin = response.parsed_query.origin
+        if origin is None:
+            return []
+        geofence = self.evaluator.safety.check_geofence(LatLon(lat=origin.lat, lon=origin.lon))
+        if not geofence.on_land:
+            return []
+        response.warnings.append(
+            OrcaWarning(
+                severity="critical",
+                code="ORIGIN_INLAND",
+                message=(
+                    f"Resolved place '{origin.place}' sits inside the land layer — "
+                    "verify the departure point; zones are still measured from these coordinates."
+                ),
+                source="verification",
+            )
+        )
+        return ["resolved origin is on land (ORIGIN_INLAND warning attached)"]
 
     # ------------------------------------------------------------- helpers
     def _build_parser(self):

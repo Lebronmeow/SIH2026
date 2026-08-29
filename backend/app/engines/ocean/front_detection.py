@@ -36,10 +36,38 @@ from app.providers.base import OceanField
 
 
 class FrontStrategy(Protocol):
-    """Pluggable front-detection strategy (deterministic default, ML later)."""
+    """Pluggable front-detection strategy (deterministic default, ML later).
+
+    Optional ML upgrade path — **JUNO** (MIT license; verdict A/B in
+    OPEN_SOURCE_RESEARCH.md): its ``detect_fronts`` (Canny/BOA/CCA family)
+    can be wrapped as a ``FrontStrategy`` by implementing ``detect(da)`` as a
+    thin adapter over JUNO's API. This is deliberately NOT wired into the
+    demo: it pulls in ``opencv-python`` (image-binary dependency) and JUNO's
+    output would have to be validated against the deterministic gradient
+    baseline before it may influence advisories. The protocol above is the
+    only change surface — nothing else in the codebase moves.
+    """
 
     def detect(self, da: xr.DataArray) -> xr.DataArray:  # pragma: no cover
         """Return a front-strength array (same shape, same coords)."""
+
+
+def build_front_strategy(name: str) -> FrontStrategy:
+    """Strategy factory (config-driven, ``ORCA_FRONT_STRATEGY``).
+
+    ``gradient`` — deterministic baseline (default, always available).
+    ``juno`` — the JUNO adapter; raises until the optional JUNO/opencv
+    dependency is installed and a validated adapter is provided.
+    """
+    if name == "gradient":
+        return GradientFrontStrategy()
+    if name == "juno":
+        raise NotImplementedError(
+            "JUNO front strategy is a documented upgrade path, not shipped: "
+            "install JUNO + opencv-python and implement FrontStrategy.detect() "
+            "(see the FrontStrategy docstring and OPEN_SOURCE_RESEARCH.md)."
+        )
+    raise ValueError(f"unknown front strategy {name!r} (available: gradient, juno)")
 
 
 @dataclass(slots=True)

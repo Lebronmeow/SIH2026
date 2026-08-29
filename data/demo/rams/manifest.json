@@ -140,5 +140,10 @@
       "source_id": "orca-demo",
       "synthetic": true
     }
+  },
+  "ais": {
+    "source_id": "orca-demo",
+    "synthetic": true,
+    "n_vessels": 4
   }
 }

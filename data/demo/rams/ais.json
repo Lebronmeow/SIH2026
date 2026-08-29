@@ -1,0 +1,43 @@
+{
+ "synthetic": true,
+ "note": "SYNTHETIC AIS reports for demo mode only \u2014 NOT real vessel traffic. Connect a live feed via app.services.ais.decode_nmea (pyais) in ops mode.",
+ "retrieved_at": "2026-08-29T11:05:00.312118+00:00",
+ "vessels": [
+  {
+   "mmsi": "419000001",
+   "lat": 9.21,
+   "lon": 79.42,
+   "sog_kn": 4.5,
+   "cog_deg": 190.0,
+   "vessel_type": "fishing",
+   "timestamp": null
+  },
+  {
+   "mmsi": "419000002",
+   "lat": 9.55,
+   "lon": 79.05,
+   "sog_kn": 3.2,
+   "cog_deg": 95.0,
+   "vessel_type": "fishing",
+   "timestamp": null
+  },
+  {
+   "mmsi": "419000003",
+   "lat": 8.95,
+   "lon": 79.85,
+   "sog_kn": 6.0,
+   "cog_deg": 45.0,
+   "vessel_type": "cargo",
+   "timestamp": null
+  },
+  {
+   "mmsi": "419000004",
+   "lat": 9.02,
+   "lon": 79.62,
+   "sog_kn": 0.3,
+   "cog_deg": 0.0,
+   "vessel_type": "fishing",
+   "timestamp": null
+  }
+ ]
+}

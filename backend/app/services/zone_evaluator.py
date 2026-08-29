@@ -15,6 +15,7 @@ import logging
 import math
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 import numpy as np
 import xarray as xr
@@ -50,6 +51,12 @@ from app.schemas.recommendation import (
 logger = logging.getLogger(__name__)
 _GEOD = Geod(ellps="WGS84")
 
+if TYPE_CHECKING:
+    from app.services.ais import AisProvider
+
+# traffic-context radius around the recommended zone (km)
+AIS_TRAFFIC_RADIUS_KM = 5.0
+
 
 def distance_km_between(a: LatLon, b: LatLon) -> float:
     _az, _back, m = _GEOD.inv(a.lon, a.lat, b.lon, b.lat)
@@ -66,6 +73,7 @@ class ZoneEvaluationService:
         n_bearings: int = 24,
         vessel_speed_knots: float = 6.5,
         max_zones_returned: int = 12,
+        ais: "AisProvider | None" = None,
     ) -> None:
         self.hub = hub
         self.safety = safety
@@ -76,6 +84,67 @@ class ZoneEvaluationService:
         self.max_zones_returned = max_zones_returned
         self._pre_excluded: dict[str, str] = {}
         self._fields: dict[str, OceanField] = {}
+        self.ais = ais or self._default_ais_provider()
+
+    @staticmethod
+    def _default_ais_provider() -> "AisProvider | None":
+        """Demo packs may carry a (clearly-labeled) AIS file; ops mode wires
+        a live feed via app.services.ais.decode_nmea. No pack → None."""
+        from app.services.ais import FileAisProvider
+
+        settings = get_settings()
+        if settings.demo_dir.exists():
+            for pack in sorted(settings.demo_dir.iterdir()):
+                if (pack / "ais.json").exists():
+                    return FileAisProvider(pack)
+        return None
+
+    # --------------------------------------------------------------- AIS ctx
+    async def _ais_context(self, recommended: ZoneEvaluation | None) -> tuple[list[GeoJSONFeature], list[Evidence]]:
+        """Traffic context around the recommended zone (Phase 8).
+
+        Counts vessels within AIS_TRAFFIC_RADIUS_KM; every claim is labeled
+        when the source pack is synthetic. No AIS source → no claim at all.
+        """
+        if self.ais is None or recommended is None:
+            return [], []
+        try:
+            vessels = await self.ais.vessels_in_bbox(self._bbox_of([recommended.candidate], LatLon(lat=recommended.candidate.lat, lon=recommended.candidate.lon)))
+        except Exception:  # noqa: BLE001 — traffic context must never kill the advisory
+            logger.exception("AIS provider failed")
+            return [], []
+        if not vessels:
+            return [], []
+        from app.services.ais import count_within_radius
+
+        n = count_within_radius(vessels, recommended.candidate.lat, recommended.candidate.lon, AIS_TRAFFIC_RADIUS_KM)
+        synthetic = all(v.synthetic for v in vessels)
+        claim = (
+            f"{n} AIS vessel report(s) within {AIS_TRAFFIC_RADIUS_KM:.0f} km of the recommended zone"
+            + (" [SYNTHETIC demo traffic]" if synthetic else "")
+        )
+        evidence = [
+            Evidence(
+                claim=claim,
+                basis="AIS ingestion (app.services.ais)" + (" — SYNTHETIC demo pack" if synthetic else ""),
+                value=float(n),
+                unit="count",
+            )
+        ]
+        features = [
+            GeoJSONFeature(
+                geometry={"type": "Point", "coordinates": [v.lon, v.lat]},
+                properties={
+                    "kind": "ais",
+                    "mmsi": v.mmsi,
+                    "vessel_type": v.vessel_type,
+                    "synthetic": v.synthetic,
+                    "name": f"AIS {v.mmsi}",
+                },
+            )
+            for v in vessels
+        ]
+        return features, evidence
 
     # ---------------------------------------------------------- candidates
     def generate_candidates(self, origin: LatLon, distance_km: float) -> list[ZoneCandidate]:
@@ -235,9 +304,11 @@ class ZoneEvaluationService:
         else:
             trace.steps.append(f"ranked {len(scored)} scorable zones; none scoreable → INSUFFICIENT_DATA")
 
-        # ---- 8. evidence + sources
+        # ---- 8. evidence + sources (+ AIS traffic context, Phase 8)
         evidence = self._build_evidence(recommended, sst_front, chl_front)
         sources = self._collect_sources(fields, sst_front, chl_front)
+        ais_features, ais_evidence = await self._ais_context(recommended)
+        evidence.extend(ais_evidence)
 
         insufficient = None
         if best is None:
@@ -261,7 +332,7 @@ class ZoneEvaluationService:
             zones=zones[: self.max_zones_returned],
             recommended=recommended,
             route=route_out,
-            map_layers=self._map_layers(),
+            map_layers=self._map_layers() + ais_features,
             warnings=warnings,
             evidence=evidence,
             sources=sources,

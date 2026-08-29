@@ -133,6 +133,7 @@ async def _run() -> None:
     _write_imbl(pack, manifest)
     _write_demo_mpa(pack, manifest)
     _write_demo_land_mask(pack, manifest)
+    _write_demo_ais(pack, manifest)
 
     # ---------------- 4. manifest --------------------------------------------
     (pack / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -329,6 +330,27 @@ def _write_demo_land_mask(pack: Path, manifest: dict) -> None:
     fc = {"type": "FeatureCollection", "features": features}
     (pack / "boundaries" / "demo_land_mask.geojson").write_text(json.dumps(fc, indent=1), encoding="utf-8")
     manifest["boundaries"]["demo_land_mask"] = {"source_id": "orca-demo", "synthetic": True}
+
+
+def _write_demo_ais(pack: Path, manifest: dict) -> None:
+    """SYNTHETIC AIS vessel reports for the demo (no redistributable national
+    feed exists). Ops mode decodes a real feed via app.services.ais.decode_nmea
+    (pyais). Every value derived from this file is labeled synthetic."""
+    vessels = [
+        {"mmsi": "419000001", "lat": 9.21, "lon": 79.42, "sog_kn": 4.5, "cog_deg": 190.0, "vessel_type": "fishing", "timestamp": manifest["retrieved_at"]},
+        {"mmsi": "419000002", "lat": 9.55, "lon": 79.05, "sog_kn": 3.2, "cog_deg": 95.0, "vessel_type": "fishing", "timestamp": manifest["retrieved_at"]},
+        {"mmsi": "419000003", "lat": 8.95, "lon": 79.85, "sog_kn": 6.0, "cog_deg": 45.0, "vessel_type": "cargo", "timestamp": manifest["retrieved_at"]},
+        {"mmsi": "419000004", "lat": 9.02, "lon": 79.62, "sog_kn": 0.3, "cog_deg": 0.0, "vessel_type": "fishing", "timestamp": manifest["retrieved_at"]},
+    ]
+    payload = {
+        "synthetic": True,
+        "note": "SYNTHETIC AIS reports for demo mode only — NOT real vessel traffic. "
+                "Connect a live feed via app.services.ais.decode_nmea (pyais) in ops mode.",
+        "retrieved_at": manifest["retrieved_at"],
+        "vessels": vessels,
+    }
+    (pack / "ais.json").write_text(json.dumps(payload, indent=1), encoding="utf-8")
+    manifest["ais"] = {"source_id": "orca-demo", "synthetic": True, "n_vessels": len(vessels)}
 
 
 if __name__ == "__main__":

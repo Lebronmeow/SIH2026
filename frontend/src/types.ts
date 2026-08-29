@@ -18,6 +18,8 @@ export interface Warning {
   message: string;
   code: string | null;
   source: string | null;
+  /** Value slots for localized message templates (e.g. ROUGH_SEA → wave_m). */
+  params?: Record<string, number | string>;
 }
 
 export interface Measurement {

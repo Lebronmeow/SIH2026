@@ -28,7 +28,7 @@ export function canSpeak(): boolean {
 }
 
 /** Speak text with the browser's built-in TTS. Returns false when unsupported. */
-export function browserSpeak(text: string, lang: string): boolean {
+export function browserSpeak(text: string, lang: string, onEnd?: () => void): boolean {
   if (!canSpeak() || !text) return false;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
@@ -39,8 +39,15 @@ export function browserSpeak(text: string, lang: string): boolean {
     voices.find((v) => v.lang.startsWith(lang));
   if (match) utterance.voice = match;
   utterance.rate = 0.95;
+  utterance.onend = () => onEnd?.();
+  utterance.onerror = () => onEnd?.();
   window.speechSynthesis.speak(utterance);
   return true;
+}
+
+/** Stop browser TTS playback immediately. */
+export function browserStop(): void {
+  if (canSpeak()) window.speechSynthesis.cancel();
 }
 
 type RecognitionCtor = new () => {

@@ -4,7 +4,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "./api";
+import { api, stopSpeak } from "./api";
+import { browserStop } from "./speech";
+import * as i18n from "./i18n";
 import type { AdvisoryResponse, SystemStatus, VoiceStatus, ZoneEvaluation } from "./types";
 import MapPanel from "./components/MapPanel";
 import QueryPanel from "./components/QueryPanel";
@@ -26,6 +28,8 @@ export default function App() {
 
   const ask = useCallback(async (query: string, lang: string) => {
     if (!query) return;
+    stopSpeak();
+    browserStop();
     setBusy(true);
     setError(null);
     setSelectedZoneId(null);
@@ -46,12 +50,13 @@ export default function App() {
   }, [response, selectedZoneId]);
 
   const bannerRequired = response?.demo_banner_required || system?.demo_banner_required || false;
+  const L = i18n.t(language);
 
   return (
     <div className="app-shell">
       {bannerRequired && (
         <div className="banner" role="alert">
-          ⚠ {system?.banner_text ?? "DEMO / CACHED DATA — not live observations"}
+          ⚠ {L.wt_DEMO_MODE}
         </div>
       )}
       <QueryPanel
@@ -60,12 +65,15 @@ export default function App() {
         busy={busy}
         error={error}
         trace={response?.trace ?? null}
+        language={language}
+        onLanguage={setLanguage}
         onAsk={ask}
       />
       <MapPanel
         response={response}
         selectedZoneId={selectedZoneId}
         onPickZone={setSelectedZoneId}
+        language={language}
       />
       <RecommendationPanel
         response={response}

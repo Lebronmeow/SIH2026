@@ -4,9 +4,13 @@
  * traces back to a backend measurement — the panel renders, never computes.
  */
 
-import { api } from "../api";
-import { browserSpeak } from "../speech";
+import { useEffect, useState } from "react";
+import { api, stopSpeak } from "../api";
+import { browserSpeak, browserStop } from "../speech";
+import * as i18n from "../i18n";
 import type { AdvisoryResponse, Measurement, RouteOut, VoiceStatus, Warning, ZoneEvaluation } from "../types";
+
+type L = Record<i18n.Key, string>;
 
 const SEVERITY_CLASS: Record<string, string> = {
   info: "sev-info",
@@ -15,14 +19,21 @@ const SEVERITY_CLASS: Record<string, string> = {
   critical: "sev-critical",
 };
 
+const SEV_KEY: Record<string, i18n.Key> = {
+  info: "sev_info",
+  caution: "sev_caution",
+  warning: "sev_warning",
+  critical: "sev_critical",
+};
+
 function fmt(v: number | null | undefined, digits = 2): string {
   return v == null ? "—" : v.toFixed(digits);
 }
 
-function ist(t: string | null | undefined): string {
+function ist(t: string | null | undefined, lang: string): string {
   if (!t) return "—";
   try {
-    return new Date(t).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+    return new Date(t).toLocaleString(i18n.localeOf(lang), { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
   } catch {
     return t;
   }
@@ -35,37 +46,37 @@ function ist(t: string | null | undefined): string {
    with the backend's ROUGH_SEA / STRONG_WIND caution thresholds. No science
    is computed here. */
 
-function waveWord(m: number | null | undefined): string {
+function waveWord(m: number | null | undefined, L: L): string {
   if (m == null) return "";
-  if (m < 0.5) return "calm sea";
-  if (m < 1.25) return "slight waves";
-  if (m < 2.5) return "moderate waves";
-  if (m < 4) return "rough sea";
-  return "very rough sea";
+  if (m < 0.5) return L.w_calm;
+  if (m < 1.25) return L.w_slight;
+  if (m < 2.5) return L.w_moderate;
+  if (m < 4) return L.w_rough;
+  return L.w_vrough;
 }
 
-function windWord(kmh: number | null | undefined): string {
+function windWord(kmh: number | null | undefined, L: L): string {
   if (kmh == null) return "";
-  if (kmh < 12) return "light wind";
-  if (kmh < 20) return "gentle breeze";
-  if (kmh < 30) return "strong wind";
-  return "very strong wind";
+  if (kmh < 12) return L.wn_light;
+  if (kmh < 20) return L.wn_gentle;
+  if (kmh < 30) return L.wn_strong;
+  return L.wn_vstrong;
 }
 
-function hoursToWords(h: number | null | undefined): string {
+function hoursToWords(h: number | null | undefined, L: L): string {
   if (h == null) return "—";
   const mins = Math.round(h * 60);
   const hh = Math.floor(mins / 60);
   const mm = mins % 60;
-  if (hh === 0) return `about ${mm} min`;
-  if (mm === 0) return `about ${hh} h`;
-  return `about ${hh} h ${mm} min`;
+  if (hh === 0) return i18n.fmt(L.h_min, { m: mm });
+  if (mm === 0) return i18n.fmt(L.h_h, { h: hh });
+  return i18n.fmt(L.h_hm, { h: hh, m: mm });
 }
 
 /** Plain direction from a compass bearing (8 points) — e.g. "20 km NE". */
-function dirWords(bearing: number | null | undefined): string {
-  if (bearing == null) return "distance";
-  const names = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+function dirWords(bearing: number | null | undefined, L: L): string {
+  if (bearing == null) return "";
+  const names = [L.d_N, L.d_NE, L.d_E, L.d_SE, L.d_S, L.d_SW, L.d_W, L.d_NW];
   const idx = Math.round(((bearing % 360) + 360) % 360 / 45) % 8;
   return names[idx];
 }
@@ -78,38 +89,38 @@ function pct(v: number | null | undefined): string {
 /** Friendly label for a measurement variable (names as emitted by
  *  zone_evaluator). The value/unit still come from the backend untouched —
  *  we only change the wording around it. */
-const FRIENDLY: Record<string, { icon: string; name: string; meaning: string; digits: number }> = {
-  sst_c: { icon: "🌡️", name: "Water temperature", meaning: "Where the temperature changes quickly, fish often gather", digits: 1 },
-  chlorophyll_mg_m3: { icon: "🌿", name: "Plant life in the water", meaning: "More plant life → more small fish → bigger fish come to feed", digits: 2 },
-  wave_height_m: { icon: "🌊", name: "Wave height", meaning: "", digits: 2 },
-  wind_speed_kmh: { icon: "💨", name: "Wind speed", meaning: "", digits: 1 },
-  current_speed_ms: { icon: "🌀", name: "Current strength", meaning: "How hard the water pushes against the boat", digits: 2 },
+const FRIENDLY: Record<string, { icon: string; key: i18n.Key; meaning: i18n.Key | ""; digits: number }> = {
+  sst_c: { icon: "🌡️", key: "t_sst", meaning: "t_sst_m", digits: 1 },
+  chlorophyll_mg_m3: { icon: "🌿", key: "t_chl", meaning: "t_chl_m", digits: 2 },
+  wave_height_m: { icon: "🌊", key: "t_wave", meaning: "", digits: 2 },
+  wind_speed_kmh: { icon: "💨", key: "t_wind", meaning: "", digits: 1 },
+  current_speed_ms: { icon: "🌀", key: "t_cur", meaning: "t_cur_m", digits: 2 },
 };
 
-function ConditionTile({ m }: { m: Measurement }) {
+function ConditionTile({ m, L }: { m: Measurement; L: L }) {
   const f = FRIENDLY[m.variable];
   const p = m.provenance;
   const value = m.value == null ? "—" : fmt(m.value, f?.digits ?? 2);
   const word =
-    m.variable === "wave_height_m" ? waveWord(m.value) : m.variable === "wind_speed_kmh" ? windWord(m.value) : "";
+    m.variable === "wave_height_m" ? waveWord(m.value, L) : m.variable === "wind_speed_kmh" ? windWord(m.value, L) : "";
   return (
     <li className="tile">
       <div className="tile-head">
         <span className="tile-icon" aria-hidden>{f?.icon ?? "📍"}</span>
-        <span className="tile-name">{f?.name ?? m.variable}</span>
-        {m.quality === "missing" && <span className="badge missing">MISSING</span>}
-        {m.quality === "stale" && <span className="badge stale">CACHED</span>}
+        <span className="tile-name">{f ? L[f.key] : m.variable}</span>
+        {m.quality === "missing" && <span className="badge missing">{L.badge_missing}</span>}
+        {m.quality === "stale" && <span className="badge stale">{L.badge_cached}</span>}
       </div>
       <div className="tile-value">
         {value} <span className="tile-unit">{m.unit ?? ""}</span>
         {word && <span className="tile-word">{word}</span>}
       </div>
-      {f?.meaning && <div className="tile-meaning dim">{f.meaning}</div>}
+      {f?.meaning && <div className="tile-meaning dim">{L[f.meaning]}</div>}
       {p && (
         <div className="prov dim">
           {p.source_name}
           {p.dataset ? ` · ${p.dataset}` : ""}
-          {p.spatial_resolution ? ` · ${p.spatial_resolution}` : ""} · retrieved {ist(p.retrieved_at)}
+          {p.spatial_resolution ? ` · ${p.spatial_resolution}` : ""} · {L.retrieved} {ist(p.retrieved_at, "")}
         </div>
       )}
       {p?.notes && <div className="prov note dim">{p.notes}</div>}
@@ -133,28 +144,28 @@ function ScoreMeter(props: { label: string; value: number | null; hint: string; 
   );
 }
 
-function ZoneDetail({ zone }: { zone: ZoneEvaluation }) {
+function ZoneDetail({ zone, L }: { zone: ZoneEvaluation; L: L }) {
   const s = zone.score;
   return (
     <>
-      <h3>Fishing conditions at this zone</h3>
-      <p className="dim section-hint">What the sea is like at this exact spot, measured by satellites and buoys.</p>
-      <ul className="tiles">{zone.measurements.map((m) => <ConditionTile key={m.variable} m={m} />)}</ul>
+      <h3>{L.z_conds}</h3>
+      <p className="dim section-hint">{L.z_conds_hint}</p>
+      <ul className="tiles">{zone.measurements.map((m) => <ConditionTile key={m.variable} m={m} L={L} />)}</ul>
 
       <details className="expert">
-        <summary>Expert detail: scores &amp; numbers</summary>
+        <summary>{L.expert_scores}</summary>
         <ul className="kv">
-          <li>Overall score: <strong>{fmt(s.overall_score, 3)}</strong> (higher is better)</li>
+          <li>{L.kv_overall}: <strong>{fmt(s.overall_score, 3)}</strong> {L.kv_overall_note}</li>
           {zone.distance_to_boundary_km != null && (
-            <li>Distance to maritime boundary: {fmt(zone.distance_to_boundary_km, 1)} km</li>
+            <li>{L.kv_boundary}: {fmt(zone.distance_to_boundary_km, 1)} {L.km}</li>
           )}
           {zone.front_strength?.sst_front_c_per_km != null && (
-            <li>SST front strength: {fmt(zone.front_strength.sst_front_c_per_km, 3)} °C/km</li>
+            <li>{L.kv_front}: {fmt(zone.front_strength.sst_front_c_per_km, 3)} °C/km</li>
           )}
         </ul>
         <ul className="meters">
-          <ScoreMeter label="Fish potential" value={s.productivity_score} hint="How promising the water looks for fish (0–100%)" kind="good" />
-          <ScoreMeter label="Safety risk" value={s.risk_score} hint="How risky the conditions are (lower is better)" kind="risk" />
+          <ScoreMeter label={L.m_fish} value={s.productivity_score} hint={L.m_fish_hint} kind="good" />
+          <ScoreMeter label={L.m_risk} value={s.risk_score} hint={L.m_risk_hint} kind="risk" />
         </ul>
       </details>
     </>
@@ -164,41 +175,61 @@ function ZoneDetail({ zone }: { zone: ZoneEvaluation }) {
 type Verdict = { cls: string; icon: string; title: string; sub: string };
 
 /** Verdict derived ONLY from the backend's warning severities — no new logic. */
-function verdictOf(warnings: Warning[]): Verdict {
+function verdictOf(warnings: Warning[], L: L): Verdict {
   if (warnings.some((w) => w.severity === "critical")) {
-    return { cls: "stop", icon: "⛔", title: "Do not go out", sub: "A critical warning is active. Stay in harbour." };
+    return { cls: "stop", icon: "⛔", title: L.v_stop_t, sub: L.v_stop_s };
   }
   if (warnings.some((w) => w.severity === "warning" || w.severity === "caution")) {
-    return { cls: "careful", icon: "⚠️", title: "Go with care", sub: "Read the warnings below before you leave." };
+    return { cls: "careful", icon: "⚠️", title: L.v_care_t, sub: L.v_care_s };
   }
-  return { cls: "go", icon: "✅", title: "Good day to fish", sub: "No safety warnings were raised for this trip." };
+  return { cls: "go", icon: "✅", title: L.v_go_t, sub: L.v_go_s };
 }
 
-function TripCard({ route }: { route: RouteOut }) {
+/** Localize value-bearing warning messages; unknown codes keep the backend's
+ *  honest English text rather than a made-up translation. */
+function warningText(w: Warning, L: L): string {
+  const p = (w.params ?? {}) as Record<string, string | number>;
+  switch (w.code) {
+    case "ROUGH_SEA":
+      return i18n.fmt(L.wt_ROUGH_SEA, { v: fmt(p.wave_m as number, 1) });
+    case "STRONG_WIND":
+      return i18n.fmt(L.wt_STRONG_WIND, { v: fmt(p.wind_kmh as number, 0) });
+    case "NO_WAVE_DATA":
+      return L.wt_NO_WAVE_DATA;
+    case "DEMO_MODE":
+      return L.wt_DEMO_MODE;
+    case "MANY_MISSING_PRODUCTS":
+      return i18n.fmt(L.wt_MANY_MISSING_PRODUCTS, { n: p.count ?? "—", total: p.total ?? "—" });
+    case "ORIGIN_INLAND":
+      return i18n.fmt(L.wt_ORIGIN_INLAND, { v: p.place ?? "" });
+    default:
+      return w.message;
+  }
+}
+
+/** Route notes arrive in English from the backend; the known shore-launch
+ *  disclosure is shown in the UI language, others stay verbatim. */
+function noteText(n: string, L: L): string {
+  if (n.includes("nearest water point to the origin")) return L.rt_shore;
+  return n;
+}
+
+function TripCard({ route, L }: { route: RouteOut; L: L }) {
   return (
     <section className="card">
-      <h3>Your boat trip</h3>
+      <h3>{L.trip}</h3>
       <ul className="kv trip">
-        <li>🧭 Distance to travel: <strong>{fmt(route.distance_km, 1)} km</strong></li>
-        <li>⏱️ Time on the water: <strong>{hoursToWords(route.estimated_time_h)}</strong></li>
+        <li>🧭 {L.tr_distance}: <strong>{fmt(route.distance_km, 1)} {L.km}</strong></li>
+        <li>⏱️ {L.tr_time}: <strong>{hoursToWords(route.estimated_time_h, L)}</strong></li>
         {route.hazard_stats.max_wave_m != null && (
-          <li>🌊 Biggest wave on the way: <strong>{fmt(route.hazard_stats.max_wave_m)} m</strong> — {waveWord(route.hazard_stats.max_wave_m)}</li>
+          <li>🌊 {L.tr_wave}: <strong>{fmt(route.hazard_stats.max_wave_m)} m</strong> — {waveWord(route.hazard_stats.max_wave_m, L)}</li>
         )}
       </ul>
-      {route.blocked_by_constraints && (
-        <p className="blocked-note">
-          ⛔ No safe route could be drawn — a hard boundary or protected area blocks the path. Read the warnings below.
-        </p>
-      )}
-      {route.notes.length > 0 && <p className="note dim">{route.notes.join(" · ")}</p>}
+      {route.blocked_by_constraints && <p className="blocked-note">⛔ {L.tr_blocked}</p>}
+      {route.notes.length > 0 && <p className="note dim">{route.notes.map((n) => noteText(n, L)).join(" · ")}</p>}
       <details className="expert">
-        <summary>What does "safe route" mean?</summary>
-        <p>
-          ORCA plans the boat's path from the coast to the fishing zone and checks every step against real map layers:
-          the India–Sri Lanka maritime boundary (IMBL), protected marine parks and land. A route is only drawn if it
-          stays clear of all of them, and wave and wind data along the way steer it toward calmer water. The path is
-          computed by a deterministic routing engine — the AI never draws or approves it.
-        </p>
+        <summary>{L.tr_explain}</summary>
+        <p>{L.tr_explain_b}</p>
       </details>
     </section>
   );
@@ -212,35 +243,53 @@ export default function RecommendationPanel(props: {
   onPickZone: (zoneId: string | null) => void;
 }) {
   const { response, selectedZone, language, voice } = props;
+  const L = i18n.t(language);
+
+  // voice playback state — hooks stay above the early return so the component
+  // can unmount cleanly while audio is playing
+  const [speaking, setSpeaking] = useState(false);
+  useEffect(() => () => { stopSpeak(); browserStop(); }, []);
+
   if (!response) {
     return (
       <aside className="panel right">
-        <h3>Recommendation</h3>
-        <p className="dim">Ask a question to see the evidence-backed recommendation.</p>
+        <h3>{L.recommendation}</h3>
+        <p className="dim">{L.emptyRight}</p>
       </aside>
     );
   }
   const rec = response.recommended;
   const shown = selectedZone ?? rec;
   const route = response.route;
-  const verdict = verdictOf(response.warnings);
+  const verdict = verdictOf(response.warnings, L);
   const ranked = response.zones
     .filter((z) => !z.excluded && z.rank != null)
     .slice(0, 5);
 
+  function endPlayback() {
+    stopSpeak();
+    browserStop();
+    setSpeaking(false);
+  }
+
   async function listen() {
     const text = response?.explanation;
     if (!text) return;
+    endPlayback();
+    setSpeaking(true);
+    const done = () => setSpeaking(false);
     if (voice?.speak) {
       try {
-        await api.speak(text, language);
+        await api.speak(text, language, done);
       } catch (e) {
-        alert(`Read-aloud failed: ${(e as Error).message}`);
+        done();
+        alert(i18n.fmt(L.speakFail, { e: (e as Error).message }));
       }
       return;
     }
-    if (!browserSpeak(text, language)) {
-      alert("Read-aloud is unavailable in this browser and no voice engine is configured.");
+    if (!browserSpeak(text, language, done)) {
+      setSpeaking(false);
+      alert(L.speakUnavailable);
     }
   }
 
@@ -251,14 +300,14 @@ export default function RecommendationPanel(props: {
           <div className="verdict stop" role="status">
             <span className="verdict-icon" aria-hidden>🚫</span>
             <div>
-              <div className="verdict-title">Cannot advise right now</div>
+              <div className="verdict-title">{L.v_none_t}</div>
               <div className="verdict-sub">{response.insufficient.detail}</div>
             </div>
           </div>
           {response.insufficient.missing_variables && (
-            <p className="dim">Missing data: {response.insufficient.missing_variables.join(", ")}</p>
+            <p className="dim">{L.missingData}: {response.insufficient.missing_variables.join(", ")}</p>
           )}
-          <p className="note dim">What you can do: ask again later, when more data is available.</p>
+          <p className="note dim">{L.whatToDo}</p>
         </>
       ) : (
         <>
@@ -272,7 +321,7 @@ export default function RecommendationPanel(props: {
 
           {ranked.length > 0 && (
             <>
-              <h3>Best zones — tap one</h3>
+              <h3>{L.bestZones}</h3>
               <ol className="zones-list">
                 {ranked.map((z) => {
                   const active = shown?.candidate.id === z.candidate.id;
@@ -286,7 +335,7 @@ export default function RecommendationPanel(props: {
                       >
                         <span className="rank">{isBest ? "★" : "#"}{z.rank}</span>
                         <span className="z-where">
-                          {z.candidate.distance_from_origin_km} km {dirWords(z.candidate.bearing_deg)}
+                          {z.candidate.distance_from_origin_km} {L.km} {dirWords(z.candidate.bearing_deg, L)}
                         </span>
                         <span className="z-score">{pct(z.score.overall_score)}</span>
                       </button>
@@ -294,33 +343,38 @@ export default function RecommendationPanel(props: {
                   );
                 })}
               </ol>
-              <p className="section-hint dim">The map shows the same numbers on each dot.</p>
+              <p className="section-hint dim">{L.rankHint}</p>
             </>
           )}
 
-          <h3>Why this zone?</h3>
-          <p className="explanation">{response.explanation ?? "No explanation generated."}</p>
+          <h3>{L.whyZone}</h3>
+          <p className="explanation">{response.explanation ?? L.noExplanation}</p>
           {rec && (
             <p className="note">
-              Valid for <strong>{ist(response.valid_time)}</strong> IST · generated {ist(response.generated_at)}
+              {L.validFor} <strong>{ist(response.valid_time, language)}</strong> IST · {L.generated}{" "}
+              {ist(response.generated_at, language)}
             </p>
           )}
-          <button className="link small" onClick={() => void listen()}>🔊 Listen to this</button>
-          {selectedZone && rec && selectedZone.candidate.id !== rec.candidate.id && (
-            <p className="note dim">You picked a different zone on the map — its details are below.</p>
+          {speaking ? (
+            <button className="link small stop-sound" onClick={endPlayback}>{L.stopSound}</button>
+          ) : (
+            <button className="link small" onClick={() => void listen()}>{L.listen}</button>
           )}
-          {shown && <ZoneDetail zone={shown} />}
-          {route && <TripCard route={route} />}
+          {selectedZone && rec && selectedZone.candidate.id !== rec.candidate.id && (
+            <p className="note dim">{L.pickedNote}</p>
+          )}
+          {shown && <ZoneDetail zone={shown} L={L} />}
+          {route && <TripCard route={route} L={L} />}
         </>
       )}
 
       {response.warnings.length > 0 && (
         <>
-          <h3>Warnings</h3>
+          <h3>{L.wTitle}</h3>
           <ul className="warnings">
             {response.warnings.map((w: Warning, i) => (
               <li key={i} className={SEVERITY_CLASS[w.severity] ?? "sev-info"}>
-                <strong>{w.severity.toUpperCase()}</strong> {w.message}
+                <strong>{L[SEV_KEY[w.severity] ?? "sev_info"]}</strong> {warningText(w, L)}
               </li>
             ))}
           </ul>
@@ -329,7 +383,7 @@ export default function RecommendationPanel(props: {
 
       {response.evidence.length > 0 && (
         <details className="expert">
-          <summary>Expert detail: evidence ({response.evidence.length})</summary>
+          <summary>{L.expert_evidence} ({response.evidence.length})</summary>
           <ul className="evidence">
             {response.evidence.map((e, i) => (
               <li key={i}>
@@ -342,20 +396,20 @@ export default function RecommendationPanel(props: {
       )}
 
       <details className="expert">
-        <summary>Word list — what these terms mean</summary>
+        <summary>{L.glossary}</summary>
         <ul className="glossary">
-          <li><strong>Zone</strong> — a patch of sea that ORCA scored for fishing and safety.</li>
-          <li><strong>Front</strong> — a line where warm and cool water meet; small fish gather there.</li>
-          <li><strong>IMBL</strong> — the India–Sri Lanka maritime boundary line. Crossing it is not allowed.</li>
-          <li><strong>MPA</strong> — a Marine Protected Area where fishing is restricted.</li>
-          <li><strong>Chlorophyll</strong> — plant life in the water; a sign of fish feeding.</li>
-          <li><strong>SST</strong> — sea surface temperature.</li>
-          <li><strong>Cached</strong> — measured earlier and stored, not live this minute.</li>
+          <li>{L.gl_zone}</li>
+          <li>{L.gl_front}</li>
+          <li>{L.gl_imbl}</li>
+          <li>{L.gl_mpa}</li>
+          <li>{L.gl_chl}</li>
+          <li>{L.gl_sst}</li>
+          <li>{L.gl_cached}</li>
         </ul>
       </details>
 
       <details className="trace">
-        <summary>Raw response ({response.request_id})</summary>
+        <summary>{L.raw} ({response.request_id})</summary>
         <pre>{JSON.stringify(response, null, 1).slice(0, 4000)}</pre>
       </details>
     </aside>

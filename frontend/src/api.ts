@@ -16,6 +16,16 @@ async function json<T>(resp: Response): Promise<T> {
   return resp.json() as Promise<T>;
 }
 
+let currentAudio: HTMLAudioElement | null = null;
+
+/** Stop read-aloud audio started through this module (server TTS playback). */
+export function stopSpeak(): void {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+}
+
 export const api = {
   systemStatus: () =>
     fetch("/api/system/status").then((r) => json<SystemStatus>(r)),
@@ -45,7 +55,7 @@ export const api = {
     return body.text;
   },
 
-  speak: (text: string, language: string): Promise<void> =>
+  speak: (text: string, language: string, onEnd?: () => void): Promise<void> =>
     fetch("/api/voice/speak", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -55,7 +65,17 @@ export const api = {
       .then(({ audio_base64, format }) => {
         const bytes = Uint8Array.from(atob(audio_base64), (c) => c.charCodeAt(0));
         const url = URL.createObjectURL(new Blob([bytes], { type: format === "mp3" ? "audio/mpeg" : "audio/wav" }));
-        new Audio(url).play();
+        const audio = new Audio(url);
+        currentAudio = audio;
+        audio.onended = () => {
+          if (currentAudio === audio) currentAudio = null;
+          onEnd?.();
+        };
+        audio.onerror = () => {
+          if (currentAudio === audio) currentAudio = null;
+          onEnd?.();
+        };
+        audio.play();
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
       }),
 };

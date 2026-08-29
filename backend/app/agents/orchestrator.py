@@ -36,10 +36,12 @@ except ImportError:  # pragma: no cover - exercised only without the package
     Executor = object  # type: ignore[assignment, misc]
 
 
-def build_advisory_workflow(hub=None) -> Any:
+def build_advisory_workflow(hub=None, language: str = "en") -> Any:
     """Return the MAF-graph advisory workflow, or None when MAF is absent.
 
     The graph is: parse → master → zone-evaluation → verification → explain.
+    ``language`` is threaded to the explanation executor so the final WHY text
+    is rendered in the user's language.
     """
     if not MAF_AVAILABLE:
         return None
@@ -96,8 +98,8 @@ def build_advisory_workflow(hub=None) -> Any:
     class ExplanationExecutor(Executor):
         @handler
         async def handle(self, response: Any, ctx: WorkflowContext[Any, Any]) -> None:
-            response.explanation = advisory.explainer.explain(response)
-            trace_sink["steps"].append("explanation generated")
+            response.explanation = advisory.explainer.explain(response, language)
+            trace_sink["steps"].append(f"explanation generated (language={language})")
             if response.trace is None:
                 from datetime import datetime, timezone
 
@@ -124,10 +126,10 @@ def build_advisory_workflow(hub=None) -> Any:
     )
 
 
-async def run_advisory(raw_text: str, hub=None, request_id: str | None = None):
+async def run_advisory(raw_text: str, hub=None, request_id: str | None = None, language: str = "en"):
     """Run the advisory through the MAF graph when available, else directly."""
     request_id = request_id or uuid.uuid4().hex[:12]
-    wf = build_advisory_workflow(hub)
+    wf = build_advisory_workflow(hub, language=language)
     if wf is not None:
         result = await wf.run(raw_text)
         outputs = result.get_outputs()
@@ -140,4 +142,4 @@ async def run_advisory(raw_text: str, hub=None, request_id: str | None = None):
             return out
         logger.warning("MAF workflow produced no output; using direct pipeline")
     advisory = FishingAdvisoryWorkflow(hub=hub)
-    return await advisory.run(raw_text, request_id=request_id)
+    return await advisory.run(raw_text, request_id=request_id, language=language)

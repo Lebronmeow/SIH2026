@@ -74,7 +74,9 @@ class FishingAdvisoryWorkflow:
         self.explainer = explainer or TemplateExplainer()
 
     # ------------------------------------------------------------------ run
-    async def run(self, raw_text: str, request_id: str | None = None) -> RecommendationResponse:
+    async def run(
+        self, raw_text: str, request_id: str | None = None, language: str = "en"
+    ) -> RecommendationResponse:
         request_id = request_id or uuid.uuid4().hex[:12]
         ctx = AdvisoryContext(raw_text=raw_text)
         started = datetime.now(timezone.utc)
@@ -99,9 +101,9 @@ class FishingAdvisoryWorkflow:
         else:
             trace.steps.append("verification: ok")
 
-        # 4 — Explanation
-        response.explanation = self.explainer.explain(response)
-        trace.steps.append("explanation generated")
+        # 4 — Explanation (rendered in the user's language from templates)
+        response.explanation = self.explainer.explain(response, language)
+        trace.steps.append(f"explanation generated (language={language})")
 
         trace.finished_at = datetime.now(timezone.utc)
         trace.duration_seconds = round((trace.finished_at - trace.started_at).total_seconds(), 2)
@@ -220,6 +222,7 @@ class FishingAdvisoryWorkflow:
                     "the boat route starts at the nearest water point."
                 ),
                 source="verification",
+                params={"place": origin.place},
             )
         )
         return ["resolved origin is on land (ORIGIN_INLAND caution attached)"]

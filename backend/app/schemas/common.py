@@ -119,6 +119,9 @@ class Warning(BaseModel):
     message: str
     code: str | None = None
     source: str | None = None
+    # Value slots (wave_m, wind_kmh, count, total, place…) so the frontend can
+    # render the message from a localized template instead of the English text.
+    params: dict[str, float | str] | None = None
 
 
 class InsufficiencyReason(BaseModel):

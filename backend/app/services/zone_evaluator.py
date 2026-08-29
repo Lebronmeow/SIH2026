@@ -293,7 +293,8 @@ class ZoneEvaluationService:
         if n_missing_products >= 4:
             warnings.append(OrcaWarning(severity="caution", code="MANY_MISSING_PRODUCTS",
                                         message=f"{n_missing_products} of {len(availability)} ocean products unavailable from providers.",
-                                        source="orca"))
+                                        source="orca",
+                                        params={"count": n_missing_products, "total": len(availability)}))
         if availability.get("wave_height") is False:
             warnings.append(OrcaWarning(severity="warning", code="NO_WAVE_DATA",
                                         message="No wave data available — wave risk NOT evaluated. Treat safety assessment as incomplete.",
@@ -309,12 +310,14 @@ class ZoneEvaluationService:
                 warnings.append(OrcaWarning(
                     severity="caution", code="ROUGH_SEA",
                     message=f"Waves of {wave_m:.1f} m expected at the recommended zone — rough sea; small craft should be cautious.",
-                    source="orca"))
+                    source="orca",
+                    params={"wave_m": round(wave_m, 1)}))
             if wind_kmh is not None and wind_kmh >= STRONG_WIND_KMH:
                 warnings.append(OrcaWarning(
                     severity="caution", code="STRONG_WIND",
                     message=f"Wind of {wind_kmh:.0f} km/h expected at the recommended zone — strong wind; handle small craft with care.",
-                    source="orca"))
+                    source="orca",
+                    params={"wind_kmh": round(wind_kmh, 0)}))
 
         recommended = best
         route_out: RouteOut | None = None

@@ -6,6 +6,7 @@
 import { useRef, useState } from "react";
 import { EXAMPLE_QUERIES, api } from "../api";
 import { canListen, listenOnce } from "../speech";
+import * as i18n from "../i18n";
 import type { SystemStatus, VoiceStatus, WorkflowTrace } from "../types";
 
 const LANGUAGES = [
@@ -24,17 +25,28 @@ export default function QueryPanel(props: {
   busy: boolean;
   error: string | null;
   trace: WorkflowTrace | null;
+  language: string;
+  onLanguage: (lang: string) => void;
   onAsk: (query: string, language: string) => void;
 }) {
-  const { system, voice, busy, error, trace } = props;
+  const { system, voice, busy, error, trace, language } = props;
+  const L = i18n.t(language);
   const [text, setText] = useState(EXAMPLE_QUERIES[0]);
-  const [language, setLanguage] = useState("en");
   const [recording, setRecording] = useState(false);
   const [listening, setListening] = useState(false);
   const [micNote, setMicNote] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const browserStt = canListen();
   const micEnabled = Boolean(voice?.transcribe) || browserStt;
+
+  const micTitle =
+    voice?.engine === "bhashini"
+      ? L.micServerBhashini
+      : voice?.engine === "local"
+        ? L.micServerLocal
+        : browserStt
+          ? L.micBrowser
+          : L.micNone;
 
   async function toggleMic() {
     setMicNote(null);
@@ -84,40 +96,32 @@ export default function QueryPanel(props: {
   return (
     <aside className="panel left">
       <h1 className="brand">ORCA</h1>
-      <p className="tagline">Marine ecosystem reasoning with collaborative agents</p>
+      <p className="tagline">{L.tagline}</p>
 
-      <label className="field-label" htmlFor="orca-query">Ask ORCA</label>
+      <label className="field-label" htmlFor="orca-query">{L.askOrca}</label>
       <textarea
         id="orca-query"
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={4}
-        placeholder="e.g. safest and most productive zone 20 km off Rameswaram tomorrow morning"
+        placeholder={L.placeholder}
       />
       <div className="row">
-        <select value={language} onChange={(e) => setLanguage(e.target.value)} aria-label="Language">
+        <select value={language} onChange={(e) => props.onLanguage(e.target.value)} aria-label="Language">
           {LANGUAGES.map((l) => (
             <option key={l.code} value={l.code}>{l.label}</option>
           ))}
         </select>
         <button
           className={`icon-btn ${recording || listening ? "recording" : ""}`}
-          title={
-            voice?.engine === "bhashini"
-              ? "Voice input (Bhashini ASR)"
-              : voice?.engine === "local"
-                ? "Voice input (Whisper speech recognition — processed on the server)"
-                : browserStt
-                  ? "Voice input (this browser's speech — works best in Chrome/Edge)"
-                  : "Voice input not available in this browser"
-          }
+          title={micTitle}
           disabled={!micEnabled}
           onClick={() => void toggleMic()}
         >
           {recording || listening ? "■" : "🎙"}
         </button>
         <button className="primary" disabled={busy || text.trim().length < 3} onClick={() => props.onAsk(text.trim(), language)}>
-          {busy ? "Working…" : "Ask"}
+          {busy ? L.working : L.ask}
         </button>
       </div>
       {micNote && <div className="error-box">{micNote}</div>}
@@ -125,7 +129,7 @@ export default function QueryPanel(props: {
         <p className="note dim">🔊 {voice.message}</p>
       )}
 
-      <label className="field-label">Examples</label>
+      <label className="field-label">{L.examples}</label>
       <ul className="examples">
         {EXAMPLE_QUERIES.map((q) => (
           <li key={q}>
@@ -138,7 +142,7 @@ export default function QueryPanel(props: {
 
       {trace && (
         <details className="trace">
-          <summary>Workflow trace ({trace.steps?.length ?? 0} steps{trace.duration_seconds != null ? `, ${trace.duration_seconds}s` : ""})</summary>
+          <summary>{L.traceTitle} ({trace.steps?.length ?? 0}{trace.duration_seconds != null ? `, ${trace.duration_seconds}s` : ""})</summary>
           <ol>
             {(trace.steps ?? []).map((s, i) => (
               <li key={i}>{s}</li>
@@ -149,7 +153,7 @@ export default function QueryPanel(props: {
 
       {system && (
         <details className="expert">
-          <summary>Data sources ({system.sources.length})</summary>
+          <summary>{L.sourcesTitle} ({system.sources.length})</summary>
           <ul>
             {system.sources.map((s) => (
               <li key={s.id}>
@@ -159,7 +163,9 @@ export default function QueryPanel(props: {
             ))}
           </ul>
           <p className="note dim">
-            LLM reasoning layer: {system.llm_reasoning_enabled ? `${system.llm_provider} (explanations/orchestration only)` : "off — deterministic pipeline"}
+            {system.llm_reasoning_enabled
+              ? i18n.fmt(L.llmOn, { p: system.llm_provider })
+              : L.llmOff}
           </p>
         </details>
       )}

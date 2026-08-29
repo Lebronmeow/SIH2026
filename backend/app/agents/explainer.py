@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
+from app import i18n as i18n_texts
 from app.config.settings import get_settings
 from app.schemas.common import Measurement, Provenance, QualityFlag, Warning
 from app.schemas.recommendation import ParsedQuery, RecommendationResponse
@@ -23,105 +24,120 @@ TIMEZONE_OFFSET = 5.5  # IST — used by parser + explanations
 _DEMO_NOTICE = " (DEMO / CACHED DATA — not live observations)"
 
 
-class TemplateExplainer:
-    """Deterministic WHY-THIS-ZONE text built only from response contents."""
+def _i18n_texts(language: str) -> dict[str, str]:
+    return i18n_texts.texts(language)
 
-    def explain(self, resp: RecommendationResponse) -> str:
+
+class TemplateExplainer:
+    """Deterministic WHY-THIS-ZONE text built only from response contents.
+
+    Sentences come from per-language templates (app.i18n); the numbers inside
+    them are the backend's own values, never recomputed or re-interpreted.
+    """
+
+    def explain(self, resp: RecommendationResponse, language: str = "en") -> str:
+        T = _i18n_texts(language)
         parts: list[str] = []
         origin = resp.parsed_query.origin
         if origin:
-            parts.append(f"Searching {resp.parsed_query.distance_km or 'a nominal'} km from {origin.place}.")
+            km = resp.parsed_query.distance_km
+            parts.append(
+                T["searching"].format(km=f"{km:g}", place=origin.place)
+                if km is not None else T["searching_nodist"].format(place=origin.place)
+            )
 
         if resp.insufficient:
-            parts.append(
-                "Unable to make a reliable recommendation with the currently available data: "
-                + resp.insufficient.detail
-            )
-            parts.extend(self._warnings(resp))
+            parts.append(T["unable"] + " " + resp.insufficient.detail)
+            parts.extend(self._warnings(resp, T))
             return " ".join(parts)
 
         rec = resp.recommended
         if rec is None:
-            parts.append("No candidate zones were acceptable — all candidates failed hard safety checks.")
-            parts.extend(self._warnings(resp))
+            parts.append(T["no_candidates"])
+            parts.extend(self._warnings(resp, T))
             return " ".join(parts)
 
         cand = rec.candidate
         parts.append(
-            f"Recommended zone {cand.id} at {cand.lat:.3f}°N, {abs(cand.lon):.3f}°E "
-            f"({cand.bearing_deg:.0f}° from {origin.place if origin else 'origin'}, "
-            f"{cand.distance_from_origin_km:.1f} km offshore)."
+            T["rec_zone"].format(
+                id=cand.id, lat=f"{cand.lat:.3f}", lon=f"{abs(cand.lon):.3f}",
+                bearing=f"{cand.bearing_deg:.0f}", place=origin.place if origin else "—",
+                dist=f"{cand.distance_from_origin_km:.1f}",
+            )
         )
-        parts.append(self._why(rec, resp))
+        parts.append(self._why(rec, T))
         route = resp.route
         if route:
-            hours = route.estimated_time_h
             parts.append(
-                f"The suggested route is {route.distance_km:.1f} km, about {hours:.1f} h at your vessel speed, "
-                f"and it does not cross any restricted area or the India–Sri Lanka maritime boundary."
+                T["route_ok"].format(km=f"{route.distance_km:.1f}", h=f"{route.estimated_time_h:.1f}")
                 if not route.blocked_by_constraints
-                else "WARNING: no fully compliant route could be generated to this zone."
+                else T["route_blocked"]
             )
-        parts.extend(self._warnings(resp))
-        parts.append(self._validity(resp))
-        parts.append(self._demo(resp))
+        parts.extend(self._warnings(resp, T))
+        parts.append(self._validity(resp, T))
+        parts.append(T["demo"] if resp.demo_banner_required else "")
         return " ".join(p for p in parts if p)
 
     # ------------------------------------------------------------------ bits
     @staticmethod
-    def _why(rec, resp: RecommendationResponse) -> str:
+    def _why(rec, T: dict[str, str]) -> str:
+        """WHY sentence from the zone's own measurements.
+
+        Variable names must match what zone_evaluator emits (sst_c,
+        chlorophyll_mg_m3, wave_height_m, wind_speed_kmh).
+        """
         bits: list[str] = []
         sb = rec.score
         if sb.productivity_score is not None:
-            bits.append(f"productivity {sb.productivity_score:.2f}/1")
+            bits.append(T["b_productivity"].format(v=f"{sb.productivity_score:.2f}"))
         if sb.risk_score is not None:
-            bits.append(f"risk {sb.risk_score:.2f}/1 (lower is better)")
+            bits.append(T["b_risk"].format(v=f"{sb.risk_score:.2f}"))
         values: dict[str, Measurement] = {m.variable: m for m in rec.measurements}
-        sst = values.get("sst")
-        chl = values.get("chlorophyll")
-        wave = values.get("wave_height")
-        wind = values.get("wind_speed")
-        front = rec.front_strength.get("sst") or rec.front_strength.get("chlorophyll")
+        sst = values.get("sst_c")
+        chl = values.get("chlorophyll_mg_m3")
+        wave = values.get("wave_height_m")
+        wind = values.get("wind_speed_kmh")
+        front = rec.front_strength.get("sst_front_c_per_km")
         if sst is not None and sst.value is not None:
-            bits.append(f"SST {sst.value:.2f} °C")
+            bits.append(T["b_sst"].format(v=f"{sst.value:.2f}"))
         if chl is not None and chl.value is not None:
-            bits.append(f"chlorophyll {chl.value:.2f} mg m⁻³")
+            bits.append(T["b_chl"].format(v=f"{chl.value:.2f}"))
         if front is not None:
-            bits.append(f"thermal/front activity {front:.2f} (normalized)")
+            bits.append(T["b_front"].format(v=f"{front:.2f}"))
         if wave is not None and wave.value is not None:
-            bits.append(f"waves {wave.value:.2f} m")
+            bits.append(T["b_wave"].format(v=f"{wave.value:.2f}"))
         if wind is not None and wind.value is not None:
-            bits.append(f"wind {wind.value:.1f} km/h")
+            bits.append(T["b_wind"].format(v=f"{wind.value:.1f}"))
         if rec.distance_to_boundary_km is not None:
-            bits.append(f"{rec.distance_to_boundary_km:.1f} km from the maritime boundary")
-        text = "Why: " + ", ".join(bits) + "."
-        text += " Scores use ORCA's prototype decision weights — they are not scientifically validated."
+            bits.append(T["b_boundary"].format(v=f"{rec.distance_to_boundary_km:.1f}"))
+        text = T["why_prefix"] + ", ".join(bits) + "."
+        text += " " + T["weights"]
         return text
 
     @staticmethod
-    def _warnings(resp: RecommendationResponse) -> list[str]:
+    def _warnings(resp: RecommendationResponse, T: dict[str, str]) -> list[str]:
         out = []
         for w in resp.warnings:
             prefix = {
-                "info": "Note:",
-                "caution": "Caution:",
-                "warning": "WARNING:",
-                "critical": "CRITICAL:",
-            }.get(w.severity, "Note:")
+                "info": T["p_info"],
+                "caution": T["p_caution"],
+                "warning": T["p_warning"],
+                "critical": T["p_critical"],
+            }.get(w.severity, T["p_info"])
             out.append(f"{prefix} {w.message}")
         return out
 
     @staticmethod
-    def _validity(resp: RecommendationResponse) -> str:
+    def _validity(resp: RecommendationResponse, T: dict[str, str]) -> str:
         vt = resp.valid_time
         if vt is None:
             return ""
         local = vt.astimezone(timezone(timedelta(hours=TIMEZONE_OFFSET)))
-        return f"Valid for {local:%d %b %Y, %H:%M} IST."
+        return T["valid"].format(t=f"{local:%d %b %Y, %H:%M}")
 
     @staticmethod
-    def _demo(resp: RecommendationResponse) -> str:
-        return "Data is DEMO / CACHED — not live observations." if resp.demo_banner_required else ""
+    def _demo(resp: RecommendationResponse, T: dict[str, str]) -> str:
+        return T["demo"] if resp.demo_banner_required else ""
 
 
 class LLMExplainer:
@@ -133,12 +149,14 @@ class LLMExplainer:
         self.base_url = base_url
         self.fallback = fallback
 
-    def explain(self, resp: RecommendationResponse) -> str:
+    def explain(self, resp: RecommendationResponse, language: str = "en") -> str:
         import json
 
         import httpx
 
-        template_text = self.fallback.explain(resp)
+        from app.i18n import language_name
+
+        template_text = self.fallback.explain(resp, language)
         facts = {
             "parsed_query": resp.parsed_query.model_dump(mode="json"),
             "recommended_zone": resp.recommended.model_dump(mode="json") if resp.recommended else None,
@@ -150,7 +168,8 @@ class LLMExplainer:
         }
         system = (
             "You are ORCA's explanation agent for Indian small-scale fishers. Narrate the provided JSON "
-            "facts for the fisher in 4-6 short sentences. STRICT RULES: only use facts present in the JSON; "
+            f"facts for the fisher in 4-6 short sentences, written in {language_name(language)}. "
+            "STRICT RULES: only use facts present in the JSON; "
             "never invent measurements, zones, boundaries or warnings; always keep any DEMO-data notice and "
             "any warning; do not override safety statements. If insufficient is set, say a reliable "
             "recommendation is not possible."

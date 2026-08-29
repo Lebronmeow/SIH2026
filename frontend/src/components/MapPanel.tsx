@@ -19,6 +19,7 @@ import { MapboxOverlay } from "@deck.gl/mapbox";
 import { ScatterplotLayer, PathLayer, GeoJsonLayer, TextLayer } from "@deck.gl/layers";
 import { PathStyleExtension } from "@deck.gl/extensions";
 import type { PickingInfo } from "@deck.gl/core";
+import * as i18n from "../i18n";
 import type { AdvisoryResponse } from "../types";
 
 const INITIAL_VIEW = {
@@ -39,8 +40,10 @@ export default function MapPanel(props: {
   response: AdvisoryResponse | null;
   onPickZone: (id: string | null) => void;
   selectedZoneId: string | null;
+  language: string;
 }) {
   const { response, selectedZoneId } = props;
+  const L = i18n.t(props.language);
   const mapRef = useRef<MapRef>(null);
 
   // Frame the whole search area (ring + zones + route) whenever a new
@@ -114,24 +117,16 @@ export default function MapPanel(props: {
 
   const layers = useMemo(
     () => [
-      // land polygons first (below everything)
-      new GeoJsonLayer({
-        id: "land",
-        data: boundaries.filter((f) => f.properties?.kind === "land") as never,
-        filled: true,
-        stroked: true,
-        getFillColor: [148, 163, 184, 60] as never,
-        getLineColor: [148, 163, 184, 140] as never,
-        lineWidthMinPixels: 1,
-        pickable: false,
-      }),
+      // NOTE: `kind: "land"` features are deliberately NOT rendered — the
+      // MapLibre basemap already shows real coastlines, and a polygon overlay
+      // just hid the map. The land layer still guards the route in the engine.
       new GeoJsonLayer({
         id: "mpa",
         data: boundaries.filter((f) => f.properties?.kind === "mpa" || f.properties?.kind === "restricted") as never,
         filled: true,
         stroked: true,
-        getFillColor: [239, 68, 68, 40] as never,
-        getLineColor: [239, 68, 68, 220] as never,
+        getFillColor: [239, 68, 68, 14] as never,
+        getLineColor: [239, 68, 68, 150] as never,
         lineWidthMinPixels: 2,
         pickable: true,
       }),
@@ -217,7 +212,7 @@ export default function MapPanel(props: {
       }),
       new TextLayer({
         id: "origin-label",
-        data: originPos ? [{ position: originPos, text: "Start" }] : [] as never,
+        data: originPos ? [{ position: originPos, text: L.startLabel }] : [] as never,
         getPosition: (d: { position: [number, number] }) => d.position,
         getText: (d: { text: string }) => d.text,
         getSize: 13,
@@ -244,18 +239,16 @@ export default function MapPanel(props: {
         <DeckGLBridge layers={layers} />
       </Map>
       <div className="map-legend">
-        <span><i className="dot recommended" /> best zone (★1)</span>
-        <span><i className="dot zone" /> other zones — number = rank (tap)</span>
-        <span><i className="dot origin" /> start</span>
-        <span><i className="dot route" /> safe route</span>
-        <span><i className="poly ring" /> search area from shore</span>
-        <span><i className="line imbl" /> India–Sri Lanka boundary</span>
-        <span><i className="poly mpa" /> protected area</span>
+        <span><i className="dot recommended" /> {L.lg_best}</span>
+        <span><i className="dot zone" /> {L.lg_others}</span>
+        <span><i className="dot origin" /> {L.lg_start}</span>
+        <span><i className="dot route" /> {L.lg_route}</span>
+        <span><i className="poly ring" /> {L.lg_ring}</span>
+        <span><i className="line imbl" /> {L.lg_imbl}</span>
+        <span><i className="poly mpa" /> {L.lg_mpa}</span>
       </div>
       {response?.insufficient && (
-        <div className="map-overlay-error">
-          Unable to make a reliable recommendation with the currently available data.
-        </div>
+        <div className="map-overlay-error">{L.mapError}</div>
       )}
     </main>
   );

@@ -6,7 +6,7 @@
  *   - safe route (PathLayer)
  */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import Map, { useControl, type MapRef } from "@vis.gl/react-maplibre";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -48,9 +48,15 @@ export default function MapPanel(props: {
 
   // Frame the whole search area (ring + zones + route) whenever a new
   // response arrives, so users always see the full picture.
-  useEffect(() => {
+  // Frame the whole search area (ring + zones + route) so users always see
+  // the full picture. map.resize() first: if the map mounted while the pane
+  // was collapsed (0 px), maplibre and the deck.gl overlay keep drawing into
+  // a zero-sized canvas until the container is re-read — this re-reads it and
+  // triggers the render → deck view-sync → redraw chain.
+  const fitToResults = useCallback(() => {
     const map = mapRef.current;
     if (!map || !response) return;
+    map.resize();
     const pts: [number, number][] = response.zones
       .filter((z) => !z.excluded)
       .map((z) => [z.candidate.lon, z.candidate.lat] as [number, number]);
@@ -70,6 +76,26 @@ export default function MapPanel(props: {
       { padding: 56, maxZoom: 11.5, duration: 700 },
     );
   }, [response]);
+
+  useEffect(() => {
+    fitToResults();
+  }, [fitToResults]);
+
+  // Self-healing: when the pane becomes visible again (or is resized) after
+  // having been hidden/collapsed while a query ran, force a full map + deck
+  // resync. Without this, the overlay can stay stuck on a 0-sized canvas and
+  // the map shows nothing even though all layer data is present.
+  useEffect(() => {
+    const onShow = () => {
+      if (document.visibilityState === "visible") fitToResults();
+    };
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("resize", onShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onShow);
+      window.removeEventListener("resize", onShow);
+    };
+  }, [fitToResults]);
 
   const scatters = useMemo(() => {
     const zones = response?.zones.filter((z) => !z.excluded) ?? [];
@@ -235,6 +261,10 @@ export default function MapPanel(props: {
         ref={mapRef}
         initialViewState={INITIAL_VIEW}
         mapStyle="https://tiles.openfreemap.org/styles/liberty"
+        onError={(e) => {
+          // surface async map/style failures — previously they were silent
+          console.error("map error:", (e as { error?: Error }).error ?? e);
+        }}
       >
         <DeckGLBridge layers={layers} />
       </Map>
@@ -259,7 +289,7 @@ function DeckGLBridge(props: { layers: unknown[] }) {
   const overlay = useControl<MapboxOverlay>(
     () => new MapboxOverlay({ layers: props.layers as never }),
   );
-  // keep the overlay's layers in sync across renders (useControl builds once)
+  // keep the overlay's layers with the latest data on every render
   overlay?.setProps({ layers: props.layers as never });
   return null;
 }

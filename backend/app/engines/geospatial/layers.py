@@ -60,7 +60,7 @@ def load_layers_from_dir(directory: Path) -> list[BoundaryLayer]:
             logger.warning("cannot read boundary layer %s: %s", file, exc)
             continue
         features = raw.get("features", [raw]) if raw.get("type") == "FeatureCollection" else [raw]
-        for feature in features:
+        for i, feature in enumerate(features):
             props = feature.get("properties", {}) or {}
             try:
                 geom = shape(feature["geometry"])
@@ -77,7 +77,10 @@ def load_layers_from_dir(directory: Path) -> list[BoundaryLayer]:
                 continue
             layers.append(
                 BoundaryLayer(
-                    id=str(props.get("id", file.stem)),
+                    # features without an explicit id get a file+index id, so
+                    # multi-feature files (e.g. two IMBL lines) don't collide
+                    # and get silently de-duplicated to the first one
+                    id=str(props.get("id") or f"{file.stem}-{i}"),
                     name=str(props.get("name", file.stem)),
                     kind=kind,
                     authority=authority,

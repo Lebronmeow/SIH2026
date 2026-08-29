@@ -62,6 +62,19 @@ function hoursToWords(h: number | null | undefined): string {
   return `about ${hh} h ${mm} min`;
 }
 
+/** Plain direction from a compass bearing (8 points) — e.g. "20 km NE". */
+function dirWords(bearing: number | null | undefined): string {
+  if (bearing == null) return "distance";
+  const names = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  const idx = Math.round(((bearing % 360) + 360) % 360 / 45) % 8;
+  return names[idx];
+}
+
+/** Overall score 0–1 → "82%" (display only, no computation). */
+function pct(v: number | null | undefined): string {
+  return v == null ? "—" : `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`;
+}
+
 /** Friendly label for a measurement variable (names as emitted by
  *  zone_evaluator). The value/unit still come from the backend untouched —
  *  we only change the wording around it. */
@@ -196,6 +209,7 @@ export default function RecommendationPanel(props: {
   selectedZone: ZoneEvaluation | null;
   language: string;
   voice: VoiceStatus | null;
+  onPickZone: (zoneId: string | null) => void;
 }) {
   const { response, selectedZone, language, voice } = props;
   if (!response) {
@@ -210,6 +224,9 @@ export default function RecommendationPanel(props: {
   const shown = selectedZone ?? rec;
   const route = response.route;
   const verdict = verdictOf(response.warnings);
+  const ranked = response.zones
+    .filter((z) => !z.excluded && z.rank != null)
+    .slice(0, 5);
 
   async function listen() {
     const text = response?.explanation;
@@ -252,6 +269,34 @@ export default function RecommendationPanel(props: {
               <div className="verdict-sub">{verdict.sub}</div>
             </div>
           </div>
+
+          {ranked.length > 0 && (
+            <>
+              <h3>Best zones — tap one</h3>
+              <ol className="zones-list">
+                {ranked.map((z) => {
+                  const active = shown?.candidate.id === z.candidate.id;
+                  const isBest = z.candidate.id === rec?.candidate.id;
+                  return (
+                    <li key={z.candidate.id}>
+                      <button
+                        className={active ? "active" : ""}
+                        aria-pressed={active}
+                        onClick={() => props.onPickZone(z.candidate.id)}
+                      >
+                        <span className="rank">{isBest ? "★" : "#"}{z.rank}</span>
+                        <span className="z-where">
+                          {z.candidate.distance_from_origin_km} km {dirWords(z.candidate.bearing_deg)}
+                        </span>
+                        <span className="z-score">{pct(z.score.overall_score)}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+              <p className="section-hint dim">The map shows the same numbers on each dot.</p>
+            </>
+          )}
 
           <h3>Why this zone?</h3>
           <p className="explanation">{response.explanation ?? "No explanation generated."}</p>

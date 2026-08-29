@@ -94,6 +94,12 @@ class Settings(BaseSettings):
     bhashini_tts_service_id: str | None = None
     bhashini_timeout_seconds: float = 30.0
 
+    # -------------------------------------------------------- local voice
+    # Keyless speech fallback (app/services/local_voice.py). `local_asr_model`
+    # is any faster-whisper size: tiny/base/small (small = best Indian-language
+    # accuracy; downloaded once from Hugging Face on first use).
+    local_asr_model: str = "small"
+
     # ------------------------------------------------------------- providers
     protected_planet_api_key: str | None = None
     open_meteo_base_url: str = "https://api.open-meteo.com/v1/forecast"

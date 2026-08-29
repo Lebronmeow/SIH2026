@@ -43,7 +43,12 @@ npm run dev            # http://localhost:5173
 Open **http://localhost:8000/docs** for the API reference.
 
 > The system boots in **DEMO mode** by default (cached data, clearly labelled).
-> Switch to `ORCA_DATA_MODE=live` to fetch from configured live providers.
+> Set `ORCA_DATA_MODE=live` in `.env` (gitignored) to fetch from the configured
+> live providers — NOAA CoastWatch ERDDAP (SST), PacIOOS ERDDAP (waves),
+> Open-Meteo (wind/currents). Live queries take ~25 s (several datasets are
+> fetched and merged per request); chlorophyll can be `MISSING` when today's
+> granule is not yet published. Reference boundary layers (India–Sri Lanka
+> IMBL treaty lines, protected areas, land masks) load in **both** modes.
 
 ### Demo data pack
 

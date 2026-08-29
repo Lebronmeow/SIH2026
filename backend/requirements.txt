@@ -25,6 +25,11 @@ geojson-pydantic>=1.1
 # AIS decoding (optional input path)
 pyais>=3.2
 
+# Local keyless voice (faster-whisper ASR + edge-tts neural read-aloud).
+# Used when Bhashini is not configured; see app/services/local_voice.py
+faster-whisper>=1.2
+edge-tts>=7.0
+
 # Persistence (SQLite by default; PostGIS optional via docker-compose)
 sqlalchemy>=2.0
 geoalchemy2>=0.15

@@ -356,7 +356,7 @@ class ZoneEvaluationService:
             zones=zones[: self.max_zones_returned],
             recommended=recommended,
             route=route_out,
-            map_layers=self._map_layers() + ais_features,
+            map_layers=self._map_layers(origin, distance_km) + ais_features,
             warnings=warnings,
             evidence=evidence,
             sources=sources,
@@ -365,18 +365,50 @@ class ZoneEvaluationService:
         )
 
     # ------------------------------------------------------------ internals
-    def _map_layers(self) -> list[GeoJSONFeature]:
-        """Boundary layers (IMBL/MPA/land, authority-labeled) for the map UI."""
+    def _map_layers(self, origin: LatLon | None = None, radius_km: float | None = None) -> list[GeoJSONFeature]:
+        """Boundary layers (IMBL/MPA/land, authority-labeled) for the map UI.
+
+        When ``origin``/``radius_km`` are given, a deterministic geodesic
+        ``search_ring`` polygon (the circle the candidates were generated on)
+        is appended so users can see exactly where ORCA looked.
+        """
+        layers: list[GeoJSONFeature] = []
         from app.engines.geospatial.layers import layers_to_geojson
 
         try:
             fc = layers_to_geojson(self.safety.layers())
+            layers.extend(
+                GeoJSONFeature(geometry=f["geometry"], properties=f.get("properties", {}))
+                for f in fc["features"]
+            )
         except Exception:  # noqa: BLE001 — map decoration must never kill the advisory
-            return []
-        return [
-            GeoJSONFeature(geometry=f["geometry"], properties=f.get("properties", {}))
-            for f in fc["features"]
-        ]
+            pass
+        if origin is not None and radius_km is not None:
+            try:
+                layers.append(self._search_ring_feature(origin, radius_km))
+            except Exception:  # noqa: BLE001
+                logger.warning("search-ring generation failed", exc_info=True)
+        return layers
+
+    @staticmethod
+    def _search_ring_feature(origin: LatLon, radius_km: float) -> GeoJSONFeature:
+        """Geodesic circle (pyproj, 5° steps) — the candidate search ring."""
+        coords: list[list[float]] = []
+        for bearing in range(0, 360, 5):
+            lon2, lat2, _ = _GEOD.fwd(origin.lon, origin.lat, float(bearing), radius_km * 1000.0)
+            coords.append([round(float(lon2), 5), round(float(lat2), 5)])
+        coords.append(coords[0])  # GeoJSON rings must be closed
+        return GeoJSONFeature(
+            geometry={"type": "Polygon", "coordinates": [coords]},
+            properties={
+                "kind": "search_ring",
+                "name": f"Search ring — {radius_km:g} km from origin",
+                "radius_km": radius_km,
+                "origin": [origin.lon, origin.lat],
+                "authority": "orca",
+                "hard_constraint": False,
+            },
+        )
     async def _evaluate_one(
         self,
         cand: ZoneCandidate,

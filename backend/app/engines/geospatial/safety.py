@@ -20,7 +20,6 @@ from shapely.ops import transform as shp_transform
 from shapely.prepared import prep
 
 from app.config.registry import Authority
-from app.config.settings import DataMode
 from app.engines.geospatial.layers import BoundaryKind, BoundaryLayer
 from app.schemas.common import LatLon, Warning as OrcaWarning
 
@@ -134,7 +133,10 @@ class GeospatialSafetyEngine:
 
         settings = get_settings()
         dirs = [settings.boundaries_dir]
-        if settings.data_mode == DataMode.DEMO and settings.demo_dir.exists():
+        # Reference boundary layers (IMBL treaty lines, protected areas, land
+        # masks) ship inside the demo packs but apply in EVERY mode — a live
+        # advisory needs the same hard geofence protection as a demo one.
+        if settings.demo_dir.exists():
             dirs.extend(p / "boundaries" for p in settings.demo_dir.iterdir() if p.is_dir())
         return cls.from_directories(dirs)
 

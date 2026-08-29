@@ -51,10 +51,10 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, language }),
     })
-      .then((r) => json<{ audio_base64: string }>(r))
-      .then(({ audio_base64 }) => {
+      .then((r) => json<{ audio_base64: string; format?: string }>(r))
+      .then(({ audio_base64, format }) => {
         const bytes = Uint8Array.from(atob(audio_base64), (c) => c.charCodeAt(0));
-        const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+        const url = URL.createObjectURL(new Blob([bytes], { type: format === "mp3" ? "audio/mpeg" : "audio/wav" }));
         new Audio(url).play();
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
       }),

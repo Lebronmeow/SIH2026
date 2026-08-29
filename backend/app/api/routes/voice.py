@@ -1,12 +1,18 @@
-"""Voice / language API (Bhashini Dhruva, optional).
+"""Voice / language API.
 
-Phase 6 surface. All endpoints degrade *honestly*: without ORCA_BHASHINI_*
-configuration they return 503 SERVICE_DISABLED with a machine-readable body so
-the UI can hide the mic and fall back to English-only text input. Status:
+Two stacks, chosen per request — never mixed, never faked:
+
+1. **Bhashini Dhruva** (preferred, when ``ORCA_BHASHINI_*`` is configured).
+2. **Local keyless engine** (:mod:`app.services.local_voice`) — faster-whisper
+   ASR (offline after one model download) + edge-tts neural voices.
+
+All endpoints degrade *honestly*: when neither stack can serve a request the
+caller gets 503 SERVICE_DISABLED (capability missing) or 502 SERVICE_ERROR
+(a real upstream failure), with a machine-readable body. Status:
 
 * ``GET  /api/voice/status``    → capability map for the UI
 * ``POST /api/voice/transcribe`` → base64 audio → text (ASR)
-* ``POST /api/translate``        → text → text (NMT)
+* ``POST /api/translate``        → text → text (NMT; Bhashini only)
 * ``POST /api/voice/speak``      → text → base64 audio (TTS)
 """
 
@@ -25,6 +31,7 @@ from app.services.bhashini import (
     get_translation_service,
     get_tts_service,
 )
+from app.services.local_voice import LocalVoiceError, get_local_voice
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["voice"])
@@ -32,28 +39,78 @@ router = APIRouter(prefix="/api", tags=["voice"])
 _LANG = "^[a-z]{2}(-[A-Za-z]{2})?$"
 
 
-def _disabled(exc: BhashiniError) -> HTTPException:
+def _err(code: str, status: int, message: str) -> HTTPException:
+    return HTTPException(status_code=status, detail={"code": code, "message": message})
+
+
+def _disabled(exc: Exception) -> HTTPException:
+    if isinstance(exc, LocalVoiceError):
+        return _err("SERVICE_ERROR", 502, str(exc))
     code = 503 if isinstance(exc, ServiceDisabled) else 502
-    return HTTPException(status_code=code, detail={"code": "SERVICE_DISABLED" if code == 503 else "SERVICE_ERROR", "message": str(exc)})
+    return _err(
+        "SERVICE_DISABLED" if code == 503 else "SERVICE_ERROR",
+        code,
+        str(exc),
+    )
+
+
+async def _transcribe(audio_base64: str, language: str, encoding: str) -> tuple[str, str, str]:
+    """Bhashini when configured, else the local engine. Returns (text, lang, engine)."""
+    bhashini = get_speech_service()
+    if bhashini.enabled:
+        result = await bhashini.transcribe(audio_base64, language, encoding)
+        return result.text, result.source_language, f"bhashini:{result.service_id}"
+    local = get_local_voice()
+    if local.asr_available():
+        result = await local.transcribe(audio_base64, language)
+        return result.text, result.language, result.engine
+    raise ServiceDisabled(
+        "transcription unavailable: Bhashini not configured and faster-whisper not installed"
+    )
+
+
+async def _synthesize(text: str, language: str) -> tuple[str, str, str, str]:
+    """Bhashini when configured, else the local engine. Returns (audio_b64, lang, engine, fmt)."""
+    tts = get_tts_service()
+    if tts.enabled:
+        result = await tts.synthesize(text, language)
+        return result.audio_base64, result.language, f"bhashini:{result.service_id}", "wav"
+    local = get_local_voice()
+    if local.tts_available():
+        result = await local.synthesize(text, language)
+        return result.audio_base64, result.language, result.engine, "mp3"
+    raise ServiceDisabled(
+        "speech synthesis unavailable: Bhashini not configured and edge-tts not installed"
+    )
 
 
 @router.get("/voice/status")
 async def voice_status() -> dict:
-    """Capability map: the UI enables the mic / language picker only when true."""
+    """Capability map: the UI enables the mic / read-aloud only when true."""
     settings = get_settings()
     speech = get_speech_service()
     translation = get_translation_service()
     tts = get_tts_service()
+    local = get_local_voice()
+    bhashini_configured = settings.bhashini_enabled and bool(settings.bhashini_api_key)
+    transcribe = speech.enabled or local.asr_available()
+    speak = tts.enabled or local.tts_available()
     return {
-        "configured": settings.bhashini_enabled and bool(settings.bhashini_api_key),
-        "transcribe": speech.enabled,
+        "configured": transcribe and speak,
+        "engine": "bhashini" if bhashini_configured else ("local" if (transcribe or speak) else "none"),
+        "transcribe": transcribe,
         "translate": translation.enabled,
-        "speak": tts.enabled,
-        "english_only_fallback": not (speech.enabled and translation.enabled and tts.enabled),
+        "speak": speak,
+        "english_only_fallback": not (transcribe and translation.enabled and speak),
         "message": (
-            "Bhashini configured"
-            if settings.bhashini_enabled and settings.bhashini_api_key
-            else "Bhashini not configured — English-only mode (set ORCA_BHASHINI_* to enable)"
+            "Bhashini configured (Dhruva ASR / NMT / TTS)"
+            if bhashini_configured
+            else (
+                f"Local voice ready — Whisper '{settings.local_asr_model}' speech recognition "
+                "and neural read-aloud, no API key needed"
+                if (transcribe and speak)
+                else "No voice service available — install faster-whisper + edge-tts, or set ORCA_BHASHINI_*"
+            )
         ),
     }
 
@@ -67,14 +124,12 @@ class TranscribeRequest(BaseModel):
 @router.post("/voice/transcribe")
 async def voice_transcribe(req: TranscribeRequest) -> dict:
     try:
-        result = await get_speech_service().transcribe(req.audio_base64, req.language, req.encoding)
+        text, language, engine = await _transcribe(req.audio_base64, req.language, req.encoding)
     except BhashiniError as exc:
         raise _disabled(exc) from exc
-    return {
-        "text": result.text,
-        "language": result.source_language,
-        "service_id": result.service_id,
-    }
+    except LocalVoiceError as exc:
+        raise _disabled(exc) from exc
+    return {"text": text, "language": language, "service_id": engine}
 
 
 class TranslateRequest(BaseModel):
@@ -105,11 +160,14 @@ class SpeakRequest(BaseModel):
 @router.post("/voice/speak")
 async def voice_speak(req: SpeakRequest) -> dict:
     try:
-        result = await get_tts_service().synthesize(req.text, req.language)
+        audio_base64, language, engine, fmt = await _synthesize(req.text, req.language)
     except BhashiniError as exc:
         raise _disabled(exc) from exc
+    except LocalVoiceError as exc:
+        raise _disabled(exc) from exc
     return {
-        "audio_base64": result.audio_base64,
-        "language": result.language,
-        "service_id": result.service_id,
+        "audio_base64": audio_base64,
+        "language": language,
+        "service_id": engine,
+        "format": fmt,
     }

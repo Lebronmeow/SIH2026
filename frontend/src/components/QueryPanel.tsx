@@ -119,12 +119,8 @@ export default function QueryPanel(props: {
         </button>
       </div>
       {micNote && <div className="error-box">{micNote}</div>}
-      {voice?.english_only_fallback && (
-        <p className="note dim">
-          {browserStt
-            ? "Bhashini voice not configured — using this browser's built-in voice (English works best)."
-            : "Voice and translation services are not configured — English-only mode."}
-        </p>
+      {voice?.message && (
+        <p className="note dim">🔊 {voice.message}</p>
       )}
 
       <label className="field-label">Examples</label>

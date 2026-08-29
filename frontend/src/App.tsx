@@ -67,7 +67,13 @@ export default function App() {
         selectedZoneId={selectedZoneId}
         onPickZone={setSelectedZoneId}
       />
-      <RecommendationPanel response={response} selectedZone={selectedZone} language={language} voice={voice} />
+      <RecommendationPanel
+        response={response}
+        selectedZone={selectedZone}
+        language={language}
+        voice={voice}
+        onPickZone={setSelectedZoneId}
+      />
     </div>
   );
 }

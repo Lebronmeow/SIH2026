@@ -195,11 +195,15 @@ class FishingAdvisoryWorkflow:
         return problems
 
     def _check_origin_coastal(self, response: RecommendationResponse) -> list[str]:
-        """The resolved departure place must be at/near water (Phase 8).
+        """Disclose an on-land departure place (Phase 8).
 
-        The origin is the launch point, so being inside the land layer means
-        place resolution went wrong — disclosed as a critical warning; the
-        offshore ring itself is still checked by the hard constraints.
+        Place names resolve to town centres, which sit inside the land layer
+        under the accurate Natural Earth coastline — that is expected, not an
+        error: the routing engine launches from the nearest water point and
+        says so in the route notes. A *badly wrong* origin (deep inland) makes
+        every ring candidate violate the hard constraints, which the pipeline
+        already reports as INSUFFICIENT_DATA. Kept as a caution so the fisher
+        knows the departure coordinates are the town centre.
         """
         origin = response.parsed_query.origin
         if origin is None:
@@ -209,16 +213,16 @@ class FishingAdvisoryWorkflow:
             return []
         response.warnings.append(
             OrcaWarning(
-                severity="critical",
+                severity="caution",
                 code="ORIGIN_INLAND",
                 message=(
-                    f"Resolved place '{origin.place}' sits inside the land layer — "
-                    "verify the departure point; zones are still measured from these coordinates."
+                    f"Departure place '{origin.place}' is a town centre on land — "
+                    "the boat route starts at the nearest water point."
                 ),
                 source="verification",
             )
         )
-        return ["resolved origin is on land (ORIGIN_INLAND warning attached)"]
+        return ["resolved origin is on land (ORIGIN_INLAND caution attached)"]
 
     # ------------------------------------------------------------- helpers
     def _build_parser(self):

@@ -192,9 +192,29 @@ class RouteOptimizationEngine:
         return dist_km * self.weights.cell_distance_weight + extra
 
     # --------------------------------------------------------------- routing
+    def _nearest_open_cells(self, lons, lats, cell, blocked, max_radius: int = 4) -> list[tuple[int, int]]:
+        """Open grid cells nearest to ``cell`` (None if the whole grid is
+        blocked), ring by ring — the nearest ring with open cells is returned
+        whole so the caller can retry seaward alternatives. Deterministic."""
+        if not blocked(cell):
+            return [cell]
+        x0, y0 = cell
+        for r in range(1, max_radius + 1):
+            ring: list[tuple[int, int]] = []
+            for dx in range(-r, r + 1):
+                for dy in range(-r, r + 1):
+                    if max(abs(dx), abs(dy)) != r:
+                        continue
+                    nxt = (x0 + dx, y0 + dy)
+                    if 0 <= nxt[0] < len(lons) and 0 <= nxt[1] < len(lats) and not blocked(nxt):
+                        ring.append(nxt)
+            if ring:
+                return ring
+        return []
+
     def _run_astar(
         self, origin: LatLon, dest: LatLon, mode: str = "safe"
-    ) -> tuple[AStarResult, list[float], list[float], tuple[int, int], tuple[int, int]]:
+    ) -> tuple[AStarResult, list[float], list[float], LatLon | None, LatLon | None, list[str]]:
         lons, lats = self._grid(origin, dest)
         blocked_cache: dict[tuple[int, int], bool] = {}
 
@@ -203,10 +223,26 @@ class RouteOptimizationEngine:
                 blocked_cache[cell] = self._blocked(lats[cell[1]], lons[cell[0]])
             return blocked_cache[cell]
 
-        start = self._nearest_cell(lons, lats, origin)
-        goal = self._nearest_cell(lons, lats, dest)
-        if blocked(start) or blocked(goal):
-            return AStarResult([], math.inf, 0), lons, lats, start, goal
+        # A village origin sits ON land by definition; under an accurate land
+        # mask that cell is hard-blocked. Route from/to the nearest *water*
+        # cells instead — a boat launches from the shore, it does not sail
+        # across the island. Candidate cells are tried nearest-first; when a
+        # snapped start dead-ends (e.g. the wrong side of a narrow spit), the
+        # next-nearest is tried. Deterministic order throughout.
+        start_candidates = self._nearest_open_cells(lons, lats, self._nearest_cell(lons, lats, origin), blocked)
+        goal_candidates = self._nearest_open_cells(lons, lats, self._nearest_cell(lons, lats, dest), blocked)
+        if not start_candidates or not goal_candidates:
+            return AStarResult([], math.inf, 0), lons, lats, None, None, []
+
+        # prefer open cells on the destination side of the origin so a coastal
+        # snap doesn't strand the route on the wrong side of a narrow spit
+        base = self._nearest_cell(lons, lats, origin)
+        start_candidates.sort(
+            key=lambda c: (
+                _GEOD.inv(lons[c[0]], lats[c[1]], dest.lon, dest.lat)[2],
+                (c[0] - base[0]) ** 2 + (c[1] - base[1]) ** 2,
+            )
+        )
 
         fan = [(dx, dy) for dx in range(-4, 5) for dy in range(-4, 5) if (dx, dy) != (0, 0)]
         edge_cache: dict[tuple[tuple[int, int], tuple[int, int]], bool] = {}
@@ -250,8 +286,22 @@ class RouteOptimizationEngine:
                 return hours * 0.5  # scaled for mixed cost units (documented)
             return hours
 
-        res = astar(start, goal, neighbors=neighbors, cost=cost, heuristic=heuristic)
-        return res, lons, lats, start, goal
+        res = AStarResult([], math.inf, 0)
+        start_ll: LatLon | None = None
+        goal_ll: LatLon | None = None
+        snapped: list[str] = []
+        for s in start_candidates[:4]:
+            for g in goal_candidates[:2]:
+                res = astar(s, g, neighbors=neighbors, cost=cost, heuristic=heuristic)
+                if res.found:
+                    start_ll = self._cell_to_latlon(lons, lats, s)
+                    goal_ll = self._cell_to_latlon(lons, lats, g)
+                    if start_ll != origin:
+                        snapped.append("route starts at the nearest water point to the origin (origin is on land)")
+                    if goal_ll != dest:
+                        snapped.append("route ends at the nearest water point to the destination (destination is on land)")
+                    return res, lons, lats, start_ll, goal_ll, snapped
+        return res, lons, lats, None, None, snapped
 
     # ---------------------------------------------------------------- public
     def _to_route(
@@ -262,6 +312,9 @@ class RouteOptimizationEngine:
         lons: list[float],
         lats: list[float],
         mode: str,
+        start_ll: LatLon | None = None,
+        goal_ll: LatLon | None = None,
+        snapped: list[str] | None = None,
     ) -> Route:
         if not res.found:
             return Route(
@@ -272,9 +325,9 @@ class RouteOptimizationEngine:
                 blocked_by_constraints=True,
                 notes=["No route found — origin/destination unreachable under hard constraints."],
             )
-        coords = [origin]
+        coords = [start_ll or origin]
         coords += [self._cell_to_latlon(lons, lats, c) for c in res.path[1:-1]]
-        coords.append(dest)
+        coords.append(goal_ll or dest)
         # metrics
         total_m = 0.0
         waves: list[float] = []
@@ -296,6 +349,7 @@ class RouteOptimizationEngine:
             distance_km=round(total_m / 1000.0, 2),
             estimated_time_h=round(time_h, 2),
             mode=mode,
+            notes=list(snapped or []),
             cost_breakdown={"a_star_cost": round(res.cost, 3)},
             hazard_stats={
                 "max_wave_m": max(waves) if waves else None,
@@ -308,18 +362,18 @@ class RouteOptimizationEngine:
         )
 
     def calculate_shortest_route(self, origin: LatLon, dest: LatLon) -> Route:
-        res, lons, lats, _s, _g = self._run_astar(origin, dest, mode="shortest")
-        return self._to_route(origin, dest, res, lons, lats, "shortest")
+        res, lons, lats, s_ll, g_ll, snapped = self._run_astar(origin, dest, mode="shortest")
+        return self._to_route(origin, dest, res, lons, lats, "shortest", s_ll, g_ll, snapped)
 
     def calculate_safe_route(self, origin: LatLon, dest: LatLon) -> Route:
-        res, lons, lats, _s, _g = self._run_astar(origin, dest, mode="safe")
-        return self._to_route(origin, dest, res, lons, lats, "safe")
+        res, lons, lats, s_ll, g_ll, snapped = self._run_astar(origin, dest, mode="safe")
+        return self._to_route(origin, dest, res, lons, lats, "safe", s_ll, g_ll, snapped)
 
     def calculate_fuel_optimal_route(self, origin: LatLon, dest: LatLon) -> Route:
         # MVP: fuel ≈ time × burn rate with calm-sea optimum ⇒ same as safe route
         # with wave penalties; distance term dominates. Kept explicit for API parity.
-        res, lons, lats, _s, _g = self._run_astar(origin, dest, mode="fuel")
-        return self._to_route(origin, dest, res, lons, lats, "fuel")
+        res, lons, lats, s_ll, g_ll, snapped = self._run_astar(origin, dest, mode="fuel")
+        return self._to_route(origin, dest, res, lons, lats, "fuel", s_ll, g_ll, snapped)
 
     def calculate_risk_optimal_route(self, origin: LatLon, dest: LatLon) -> Route:
         return self.calculate_safe_route(origin, dest)

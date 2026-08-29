@@ -178,7 +178,11 @@ def test_evidence_maps_to_data(demo):
     for ev in response.evidence:
         if ev.measurement_variable is not None:
             assert ev.measurement_variable in measured
-    assert "verification: ok" in response.trace.steps
+    # hard-constraint integrity must be clean; a town-centre origin on land is
+    # expected under the Natural Earth coastline and is disclosed as a caution
+    verification_steps = [s for s in response.trace.steps if s.startswith("verification:")]
+    assert verification_steps, "verifier ran"
+    assert not any("violates" in s or "problem" in s for s in verification_steps)
 
 
 # 7 --------------------------------------------------------- demo labeling

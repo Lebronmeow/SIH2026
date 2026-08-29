@@ -6,3 +6,8 @@ Flanders Marine Institute (VLIZ) — Marine Regions, Maritime Boundaries Geodata
 https://www.marineregions.org/ · DOI 10.14284/632 · Licensed CC-BY 4.0.
 
 Retrieved 2026-08-29T11:05:00.312118+00:00 by scripts/fetch_demo_data.py.
+
+Natural Earth 10m admin-0 country polygons (India, Sri Lanka):
+Made with Natural Earth — public domain, no restrictions.
+https://www.naturalearthdata.com/downloads/10m-cultural-vectors/
+Retrieved 2026-08-29T17:01:38.234301+00:00 by scripts/fetch_land_mask.py

@@ -28,6 +28,14 @@ class SafetyCheckRequest(BaseModel):
     lon: float = Field(..., ge=-180, le=180)
 
 
+@router.get("/safety/layers")
+async def safety_layers() -> dict:
+    """All boundary layers as authority-labeled GeoJSON (map base layers)."""
+    from app.engines.geospatial.layers import layers_to_geojson
+
+    return layers_to_geojson(_safety.layers())
+
+
 @router.post("/safety/check")
 async def safety_check(req: SafetyCheckRequest) -> dict:
     """Geofence verdict for a point (MPA / restricted / IMBL / land)."""

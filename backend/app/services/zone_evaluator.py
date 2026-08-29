@@ -30,6 +30,7 @@ from app.providers.hub import OceanDataHub
 from app.schemas.common import (
     BoundingBox,
     Evidence,
+    GeoJSONFeature,
     InsufficiencyReason,
     LatLon,
     Measurement,
@@ -260,6 +261,7 @@ class ZoneEvaluationService:
             zones=zones[: self.max_zones_returned],
             recommended=recommended,
             route=route_out,
+            map_layers=self._map_layers(),
             warnings=warnings,
             evidence=evidence,
             sources=sources,
@@ -268,6 +270,18 @@ class ZoneEvaluationService:
         )
 
     # ------------------------------------------------------------ internals
+    def _map_layers(self) -> list[GeoJSONFeature]:
+        """Boundary layers (IMBL/MPA/land, authority-labeled) for the map UI."""
+        from app.engines.geospatial.layers import layers_to_geojson
+
+        try:
+            fc = layers_to_geojson(self.safety.layers())
+        except Exception:  # noqa: BLE001 — map decoration must never kill the advisory
+            return []
+        return [
+            GeoJSONFeature(geometry=f["geometry"], properties=f.get("properties", {}))
+            for f in fc["features"]
+        ]
     async def _evaluate_one(
         self,
         cand: ZoneCandidate,

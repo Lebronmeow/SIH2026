@@ -103,11 +103,13 @@ export default function QueryPanel(props: {
         <button
           className={`icon-btn ${recording || listening ? "recording" : ""}`}
           title={
-            voice?.transcribe
+            voice?.engine === "bhashini"
               ? "Voice input (Bhashini ASR)"
-              : browserStt
-                ? "Voice input (this browser's speech — works best in Chrome/Edge)"
-                : "Voice input not available in this browser"
+              : voice?.engine === "local"
+                ? "Voice input (Whisper speech recognition — processed on the server)"
+                : browserStt
+                  ? "Voice input (this browser's speech — works best in Chrome/Edge)"
+                  : "Voice input not available in this browser"
           }
           disabled={!micEnabled}
           onClick={() => void toggleMic()}

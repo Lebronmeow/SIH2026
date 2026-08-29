@@ -134,6 +134,7 @@ export interface SystemStatus {
 
 export interface VoiceStatus {
   configured: boolean;
+  engine: "bhashini" | "local" | "none";
   transcribe: boolean;
   translate: boolean;
   speak: boolean;

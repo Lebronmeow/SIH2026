@@ -240,7 +240,7 @@ export default function RecommendationPanel(props: {
       return;
     }
     if (!browserSpeak(text, language)) {
-      alert("Read-aloud needs Chrome or Edge — or a Bhashini API key (see README).");
+      alert("Read-aloud is unavailable in this browser and no voice engine is configured.");
     }
   }
 

@@ -135,11 +135,11 @@ export default function MapPanel(props: {
         <DeckGLBridge layers={layers} />
       </Map>
       <div className="map-legend">
-        <span><i className="dot recommended" /> recommended</span>
-        <span><i className="dot zone" /> candidate</span>
+        <span><i className="dot recommended" /> best zone</span>
+        <span><i className="dot zone" /> other zones (tap)</span>
         <span><i className="dot route" /> safe route</span>
-        <span><i className="line imbl" /> IMBL (reference)</span>
-        <span><i className="poly mpa" /> MPA / restricted</span>
+        <span><i className="line imbl" /> India–Sri Lanka boundary</span>
+        <span><i className="poly mpa" /> protected area</span>
       </div>
       {response?.insufficient && (
         <div className="map-overlay-error">

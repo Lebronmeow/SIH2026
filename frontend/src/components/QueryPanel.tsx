@@ -5,6 +5,7 @@
 
 import { useRef, useState } from "react";
 import { EXAMPLE_QUERIES, api } from "../api";
+import { canListen, listenOnce } from "../speech";
 import type { SystemStatus, VoiceStatus, WorkflowTrace } from "../types";
 
 const LANGUAGES = [
@@ -29,36 +30,54 @@ export default function QueryPanel(props: {
   const [text, setText] = useState(EXAMPLE_QUERIES[0]);
   const [language, setLanguage] = useState("en");
   const [recording, setRecording] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [micNote, setMicNote] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const browserStt = canListen();
+  const micEnabled = Boolean(voice?.transcribe) || browserStt;
 
   async function toggleMic() {
-    if (recording) {
-      recorderRef.current?.stop();
-      setRecording(false);
+    setMicNote(null);
+    // Bhashini/Dhruva ASR when configured — records audio and sends it to the backend.
+    if (voice?.transcribe) {
+      if (recording) {
+        recorderRef.current?.stop();
+        setRecording(false);
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mime = MediaRecorder.isTypeSupported("audio/wav") ? "audio/wav" : "";
+        const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+        const chunks: Blob[] = [];
+        rec.ondataavailable = (e) => chunks.push(e.data);
+        rec.onstop = async () => {
+          stream.getTracks().forEach((t) => t.stop());
+          try {
+            const heard = await api.transcribe(new Blob(chunks), language);
+            setText(heard);
+          } catch (e) {
+            setMicNote(`Transcription unavailable: ${(e as Error).message}`);
+          }
+        };
+        rec.start();
+        recorderRef.current = rec;
+        setRecording(true);
+      } catch {
+        setMicNote("Microphone unavailable in this browser.");
+      }
       return;
     }
-    if (!voice?.transcribe) return;
+    // Browser fallback (Web Speech API) — one-shot, audio never leaves the device.
+    if (listening) return;
+    setListening(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = MediaRecorder.isTypeSupported("audio/wav") ? "audio/wav" : "";
-      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-      const chunks: Blob[] = [];
-      rec.ondataavailable = (e) => chunks.push(e.data);
-      rec.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        try {
-          const heard = await api.transcribe(new Blob(chunks), language);
-          setText(heard);
-        } catch (e) {
-          props.onAsk("", ""); // no-op; error surfaced via alert text below
-          alert(`Transcription unavailable: ${(e as Error).message}`);
-        }
-      };
-      rec.start();
-      recorderRef.current = rec;
-      setRecording(true);
-    } catch {
-      alert("Microphone unavailable in this browser.");
+      const heard = await listenOnce(language);
+      if (heard) setText(heard);
+    } catch (e) {
+      setMicNote((e as Error).message);
+    } finally {
+      setListening(false);
     }
   }
 
@@ -82,19 +101,30 @@ export default function QueryPanel(props: {
           ))}
         </select>
         <button
-          className={`icon-btn ${recording ? "recording" : ""}`}
-          title={voice?.transcribe ? "Voice input (Bhashini ASR)" : "Voice input disabled — Bhashini not configured"}
-          disabled={!voice?.transcribe}
-          onClick={toggleMic}
+          className={`icon-btn ${recording || listening ? "recording" : ""}`}
+          title={
+            voice?.transcribe
+              ? "Voice input (Bhashini ASR)"
+              : browserStt
+                ? "Voice input (this browser's speech — works best in Chrome/Edge)"
+                : "Voice input not available in this browser"
+          }
+          disabled={!micEnabled}
+          onClick={() => void toggleMic()}
         >
-          {recording ? "■" : "🎙"}
+          {recording || listening ? "■" : "🎙"}
         </button>
         <button className="primary" disabled={busy || text.trim().length < 3} onClick={() => props.onAsk(text.trim(), language)}>
           {busy ? "Working…" : "Ask"}
         </button>
       </div>
+      {micNote && <div className="error-box">{micNote}</div>}
       {voice?.english_only_fallback && (
-        <p className="note dim">Voice/translation services not configured — English-only mode.</p>
+        <p className="note dim">
+          {browserStt
+            ? "Bhashini voice not configured — using this browser's built-in voice (English works best)."
+            : "Voice and translation services are not configured — English-only mode."}
+        </p>
       )}
 
       <label className="field-label">Examples</label>
@@ -109,7 +139,7 @@ export default function QueryPanel(props: {
       {error && <div className="error-box">{error}</div>}
 
       {trace && (
-        <details className="trace" open>
+        <details className="trace">
           <summary>Workflow trace ({trace.steps?.length ?? 0} steps{trace.duration_seconds != null ? `, ${trace.duration_seconds}s` : ""})</summary>
           <ol>
             {(trace.steps ?? []).map((s, i) => (
@@ -120,8 +150,8 @@ export default function QueryPanel(props: {
       )}
 
       {system && (
-        <div className="sources">
-          <label className="field-label">Data sources ({system.sources.length})</label>
+        <details className="expert">
+          <summary>Data sources ({system.sources.length})</summary>
           <ul>
             {system.sources.map((s) => (
               <li key={s.id}>
@@ -133,7 +163,7 @@ export default function QueryPanel(props: {
           <p className="note dim">
             LLM reasoning layer: {system.llm_reasoning_enabled ? `${system.llm_provider} (explanations/orchestration only)` : "off — deterministic pipeline"}
           </p>
-        </div>
+        </details>
       )}
     </aside>
   );

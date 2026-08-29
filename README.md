@@ -79,6 +79,25 @@ cd backend
 Tests run fully offline: geocoding is monkeypatched off and Bhashini/Dhruva
 HTTP is stubbed.
 
+### Voice & translation
+
+Voice input (🎙) and read-aloud (🔊) work **without any API key**: when Bhashini
+is not configured the UI falls back to the browser's built-in Web Speech API
+(Chrome/Edge recommended). Speech recognition runs on-device, read-aloud uses
+the browser's installed voices, and the UI honestly labels it as the browser's
+voice — never as Bhashini.
+
+To enable Bhashini (better Indian-language ASR / translation / TTS):
+
+1. Register at <https://bhashini.gov.in> and obtain Dhruva API credentials.
+2. Copy `.env.example` → `.env`, set `ORCA_BHASHINI_ENABLED=true`,
+   `ORCA_BHASHINI_API_KEY=…` and the `ORCA_BHASHINI_*_SERVICE_ID` values.
+3. Restart the backend. `GET /api/voice/status` then reports `configured: true`
+   and the UI automatically prefers Bhashini over the browser voice.
+
+`GET /api/voice/status` always reports what is actually available — the UI never
+pretends a voice service is configured when it is not.
+
 ## Docker
 
 ```bash

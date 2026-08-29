@@ -279,11 +279,6 @@ ul.kv li {
   border-bottom: 1px dashed rgba(36, 52, 79, 0.6);
 }
 
-ul.measurements li.measurement {
-  padding: 7px 0;
-  border-bottom: 1px solid rgba(36, 52, 79, 0.6);
-}
-
 .prov {
   font-size: 11.5px;
   margin-top: 2px;
@@ -348,12 +343,188 @@ details.trace pre {
   word-break: break-word;
 }
 
-.sources ul {
-  list-style: none;
-  padding: 0;
+/* --------------------------------------------------- friendly components */
+details.expert {
+  margin: 8px 0;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: rgba(22, 35, 59, 0.5);
+}
+
+details.expert summary {
+  cursor: pointer;
+  color: var(--text-dim);
   font-size: 12px;
 }
 
-.sources li {
+details.expert ul {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 2px;
+  font-size: 12.5px;
+}
+
+details.expert li {
   margin: 5px 0;
+}
+
+details.expert p {
+  font-size: 12.5px;
+  margin: 6px 0;
+  line-height: 1.5;
+}
+
+/* verdict strip — the one loud element: Go / Careful / Do not go */
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 4px 0 12px;
+  border: 1px solid var(--border);
+}
+
+.verdict.go { background: rgba(45, 212, 191, 0.12); border-color: rgba(45, 212, 191, 0.45); }
+.verdict.careful { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.5); }
+.verdict.stop { background: rgba(239, 68, 68, 0.14); border-color: rgba(239, 68, 68, 0.55); }
+
+.verdict-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.verdict-title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.verdict.go .verdict-title { color: var(--accent); }
+.verdict.careful .verdict-title { color: var(--warn); }
+.verdict.stop .verdict-title { color: #fca5a5; }
+
+.verdict-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* condition tiles */
+ul.tiles {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tile {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.tile-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tile-icon { font-size: 15px; }
+.tile-name { font-size: 11.5px; color: var(--text-dim); }
+
+.tile-value {
+  font-size: 17px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.tile-unit {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-dim);
+  margin-left: 2px;
+}
+
+.tile-word {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--accent-2);
+}
+
+.tile-meaning {
+  font-size: 10.5px;
+  margin-top: 3px;
+  line-height: 1.35;
+}
+
+.tile .prov {
+  font-size: 9.5px;
+  margin-top: 4px;
+}
+
+.section-hint {
+  font-size: 11.5px;
+  margin: 0 0 8px;
+}
+
+/* score meters (inside expert details) */
+ul.meters {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 2px;
+}
+
+.meter { margin: 8px 0; }
+
+.meter-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  margin-bottom: 4px;
+}
+
+.meter-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.meter-fill { height: 100%; border-radius: 4px; }
+.meter-fill.good { background: var(--accent); }
+.meter-fill.risk { background: var(--warn); }
+
+.meter-hint {
+  font-size: 10.5px;
+  margin-top: 3px;
+}
+
+/* trip card */
+.card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2px 12px 10px;
+  margin: 10px 0;
+}
+
+.card h3 { margin-top: 12px; }
+
+.blocked-note {
+  background: rgba(239, 68, 68, 0.16);
+  border-left: 3px solid var(--danger);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+
+ul.kv.trip li {
+  font-size: 13px;
 }

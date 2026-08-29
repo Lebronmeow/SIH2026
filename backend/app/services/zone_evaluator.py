@@ -57,6 +57,13 @@ if TYPE_CHECKING:
 # traffic-context radius around the recommended zone (km)
 AIS_TRAFFIC_RADIUS_KM = 5.0
 
+# small-craft hazard caution thresholds (deterministic, prototype heuristics —
+# not a validated safety model; bands align with the WMO "rough" sea state and
+# a fresh-breeze wind). Exceeding either raises a *caution*, never a critical:
+# critical severity is reserved for hard geospatial constraint violations.
+ROUGH_SEA_M = 2.5
+STRONG_WIND_KMH = 30.0
+
 
 def distance_km_between(a: LatLon, b: LatLon) -> float:
     _az, _back, m = _GEOD.inv(a.lon, a.lat, b.lon, b.lat)
@@ -291,6 +298,23 @@ class ZoneEvaluationService:
             warnings.append(OrcaWarning(severity="warning", code="NO_WAVE_DATA",
                                         message="No wave data available — wave risk NOT evaluated. Treat safety assessment as incomplete.",
                                         source="orca"))
+
+        # deterministic hazard cautions from the recommended zone's own
+        # measurements (never fabricated: only fires when a value exists)
+        if best is not None:
+            vals = {m.variable: m.value for m in best.measurements}
+            wave_m = vals.get("wave_height_m")
+            wind_kmh = vals.get("wind_speed_kmh")
+            if wave_m is not None and wave_m >= ROUGH_SEA_M:
+                warnings.append(OrcaWarning(
+                    severity="caution", code="ROUGH_SEA",
+                    message=f"Waves of {wave_m:.1f} m expected at the recommended zone — rough sea; small craft should be cautious.",
+                    source="orca"))
+            if wind_kmh is not None and wind_kmh >= STRONG_WIND_KMH:
+                warnings.append(OrcaWarning(
+                    severity="caution", code="STRONG_WIND",
+                    message=f"Wind of {wind_kmh:.0f} km/h expected at the recommended zone — strong wind; handle small craft with care.",
+                    source="orca"))
 
         recommended = best
         route_out: RouteOut | None = None

@@ -1,0 +1,42 @@
+{
+  "$comment": "ERDDAP server inventory for ORCA. All URLs verified reachable on 2026-08-29. INCOIS note: correct host is erddap.incois.gov.in (NOT incois.gov.in/erddap); its gridded holdings are archival (SST aggregation ends 2011) — used only for tabledap in-situ data. incois_verify=false records the incomplete-TLS-chain workaround.",
+  "servers": [
+    {
+      "id": "erddap-noaa",
+      "name": "NOAA CoastWatch/PFEL ERDDAP",
+      "url": "https://coastwatch.pfeg.noaa.gov/erddap",
+      "enabled": true,
+      "priority": 1,
+      "region_hint": "global",
+      "verified_datasets": ["jplMURSST41", "nesdisVHNSQchlaDaily", "nesdisSSH1day"]
+    },
+    {
+      "id": "erddap-noaa-nws",
+      "name": "NOAA CoastWatch National ERDDAP",
+      "url": "https://coastwatch.noaa.gov/erddap",
+      "enabled": true,
+      "priority": 2,
+      "region_hint": "global",
+      "verified_datasets": ["noaacwBLENDEDNRTcurrentsDaily"]
+    },
+    {
+      "id": "erddap-pacioos",
+      "name": "PacIOOS ERDDAP",
+      "url": "https://pae-paha.pacioos.hawaii.edu/erddap",
+      "enabled": true,
+      "priority": 3,
+      "region_hint": "global",
+      "verified_datasets": ["ww3_global", "ncep_global", "dhw_5km"]
+    },
+    {
+      "id": "incois-erddap",
+      "name": "INCOIS ERDDAP",
+      "url": "https://erddap.incois.gov.in/erddap",
+      "enabled": true,
+      "priority": 4,
+      "region_hint": "indian-ocean",
+      "incois_verify": false,
+      "verified_datasets": ["Indian_ARGO_Floats"]
+    }
+  ]
+}

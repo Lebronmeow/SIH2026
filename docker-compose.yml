@@ -1,0 +1,48 @@
+version: "3.9"
+
+# ORCA full-stack compose. PostGIS is optional — the backend falls back to
+# SQLite + file-based boundary layers when ORCA_DATABASE_URL is not set to it.
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: orca
+      POSTGRES_PASSWORD: orca
+      POSTGRES_DB: orca
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/volumes/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orca"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    env_file: .env
+    environment:
+      ORCA_DATABASE_URL: postgresql+psycopg://orca:orca@db:5432/orca
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./backend/app/config:/app/app/config:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        VITE_API_BASE: http://localhost:8000/api
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend

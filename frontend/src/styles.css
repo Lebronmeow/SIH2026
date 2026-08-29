@@ -1,0 +1,72 @@
+:root {
+  --bg: #0b1220;
+  --panel: #101a2c;
+  --panel-2: #16233b;
+  --border: #24344f;
+  --text: #e8eef7;
+  --text-dim: #9fb0c8;
+  --accent: #2dd4bf;
+  --accent-2: #38bdf8;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 340px 1fr 380px;
+  grid-template-rows: 48px auto 1fr;
+  height: 100%;
+}
+
+.banner {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--warn);
+  color: #1a1206;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+}
+
+.banner.hidden {
+  visibility: collapse;
+}
+
+.panel {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.panel.right {
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.map-container {
+  position: relative;
+}
+
+.map-container .maplibregl-map {
+  position: absolute;
+  inset: 0;
+}

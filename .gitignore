@@ -1,0 +1,44 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg
+build/
+dist/
+
+# --- Environment / secrets ---
+.env
+.env.local
+*.env
+!.env.example
+
+# --- Node ---
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# --- Data caches (demo pack is committed; large raw downloads are not) ---
+data/cache/
+data/demo/*.nc
+data/demo/*.zarr/
+data/demo/*.npz
+!data/demo/**/*.json
+!data/demo/README.md
+
+# --- Databases ---
+*.db
+*.sqlite3
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- Docker local volumes ---
+docker/volumes/

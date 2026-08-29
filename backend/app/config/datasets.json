@@ -1,0 +1,130 @@
+{
+  "$comment": "ORCA dataset catalog. All dataset IDs verified against their servers on 2026-08-29 (live subset queries executed from this machine). Logical variable -> concrete provider mapping. Staleness caveats: nesdisSSH1day runs ~5 months behind (kept as fallback); primary currents source is noaacwBLENDEDNRTcurrentsDaily (verified current to 2026-08-27). Stale data is flagged QualityFlag.STALE by the provider layer — never silently presented as current.",
+  "datasets": {
+    "sst": {
+      "provider": "erddap",
+      "source_id": "erddap-noaa",
+      "dataset_id": "jplMURSST41",
+      "protocol": "griddap",
+      "variable": "analysed_sst",
+      "unit": "degree_C",
+      "spatial_resolution": "0.01°",
+      "extras": { "note": "MUR GHRSST L4; daily; verified live 2026-08-27 at Rameswaram (30.25°C)" }
+    },
+    "sst_anomaly": {
+      "provider": "erddap",
+      "source_id": "erddap-pacioos",
+      "dataset_id": "dhw_5km",
+      "protocol": "griddap",
+      "variable": "CRW_SSTANOMALY",
+      "unit": "degree_C",
+      "spatial_resolution": "0.05°"
+    },
+    "chlorophyll": {
+      "provider": "erddap",
+      "source_id": "erddap-noaa",
+      "dataset_id": "nesdisVHNSQchlaDaily",
+      "protocol": "griddap",
+      "variable": "chlor_a",
+      "unit": "mg m-3",
+      "spatial_resolution": "0.0375°",
+      "extras": { "extra_dim": "altitude=0.0" }
+    },
+    "current_u": {
+      "provider": "erddap",
+      "source_id": "erddap-noaa-nws",
+      "dataset_id": "noaacwBLENDEDNRTcurrentsDaily",
+      "protocol": "griddap",
+      "variable": "u_current",
+      "unit": "m/s",
+      "spatial_resolution": "0.25°",
+      "extras": { "note": "altimetry NRT geostrophic currents; verified current" }
+    },
+    "current_v": {
+      "provider": "erddap",
+      "source_id": "erddap-noaa-nws",
+      "dataset_id": "noaacwBLENDEDNRTcurrentsDaily",
+      "protocol": "griddap",
+      "variable": "v_current",
+      "unit": "m/s",
+      "spatial_resolution": "0.25°"
+    },
+    "current_u_alt": {
+      "provider": "erddap",
+      "source_id": "erddap-noaa",
+      "dataset_id": "nesdisSSH1day",
+      "protocol": "griddap",
+      "variable": "ugos",
+      "unit": "m s-1",
+      "spatial_resolution": "0.25°",
+      "extras": { "staleness": "runs ~5 months behind — fallback only" }
+    },
+    "current_v_alt": {
+      "provider": "erddap",
+      "source_id": "erddap-noaa",
+      "dataset_id": "nesdisSSH1day",
+      "protocol": "griddap",
+      "variable": "vgos",
+      "unit": "m s-1",
+      "spatial_resolution": "0.25°"
+    },
+    "wave_height": {
+      "provider": "erddap",
+      "source_id": "erddap-pacioos",
+      "dataset_id": "ww3_global",
+      "protocol": "griddap",
+      "variable": "Thgt",
+      "unit": "m",
+      "spatial_resolution": "0.5°",
+      "extras": { "extra_dim": "depth=0.0", "forecast": "hourly, +7 days", "verified": "1.15 m @ Rameswaram 2026-08-29" }
+    },
+    "wave_period": {
+      "provider": "erddap",
+      "source_id": "erddap-pacioos",
+      "dataset_id": "ww3_global",
+      "protocol": "griddap",
+      "variable": "Tper",
+      "unit": "second",
+      "spatial_resolution": "0.5°",
+      "extras": { "extra_dim": "depth=0.0" }
+    },
+    "wave_direction": {
+      "provider": "erddap",
+      "source_id": "erddap-pacioos",
+      "dataset_id": "ww3_global",
+      "protocol": "griddap",
+      "variable": "Tdir",
+      "unit": "degrees",
+      "spatial_resolution": "0.5°",
+      "extras": { "extra_dim": "depth=0.0" }
+    },
+    "wind_u": {
+      "provider": "erddap",
+      "source_id": "erddap-pacioos",
+      "dataset_id": "ncep_global",
+      "protocol": "griddap",
+      "variable": "ugrd10m",
+      "unit": "m s-1",
+      "spatial_resolution": "0.5°",
+      "extras": { "forecast": "3-hourly, +7 days" }
+    },
+    "wind_v": {
+      "provider": "erddap",
+      "source_id": "erddap-pacioos",
+      "dataset_id": "ncep_global",
+      "protocol": "griddap",
+      "variable": "vgrd10m",
+      "unit": "m s-1",
+      "spatial_resolution": "0.5°"
+    },
+    "argo_profiles": {
+      "provider": "erddap",
+      "source_id": "incois-erddap",
+      "dataset_id": "Indian_ARGO_Floats",
+      "protocol": "tabledap",
+      "variable": "TEMP",
+      "unit": "degree_Celsius",
+      "extras": { "tls": "server presents incomplete cert chain — provider uses verify=False" }
+    }
+  }
+}

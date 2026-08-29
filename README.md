@@ -45,6 +45,40 @@ Open **http://localhost:8000/docs** for the API reference.
 > The system boots in **DEMO mode** by default (cached data, clearly labelled).
 > Switch to `ORCA_DATA_MODE=live` to fetch from configured live providers.
 
+### Demo data pack
+
+The Rameswaram demo pack (real cached ERDDAP subsets + Open-Meteo + VLIZ IMBL
+geometry) is committed under `data/demo/rams/` with full provenance in
+`manifest.json` and attribution in `ATTRIBUTION.md`. To rebuild or refresh it
+from live sources:
+
+```bash
+cd backend
+.venv/Scripts/python -X utf8 scripts/fetch_demo_data.py
+```
+
+### Tests
+
+```bash
+cd backend
+.venv/Scripts/python -m pytest tests/ -v
+```
+
+32 tests, including the **eight mandated critical tests**
+([backend/tests/test_critical.py](backend/tests/test_critical.py)):
+
+1. a restricted/protected polygon is never traversed (A* detours or gives up)
+2. a route never crosses the IMBL hard boundary (unreachable ⇒ blocked, never invented)
+3. missing data is never fabricated (empty pack ⇒ `INSUFFICIENT_DATA`, no recommendation)
+4. stale/cached data is always flagged `STALE` with a DEMO/CACHED note
+5. user constraints survive the pipeline (distance, place, IST time window, objectives)
+6. every evidence claim maps to a real measurement with provenance
+7. demo mode is visibly labeled (banner + `DEMO_MODE` warning + provenance envelope)
+8. every available measurement carries an explicit unit
+
+Tests run fully offline: geocoding is monkeypatched off and Bhashini/Dhruva
+HTTP is stubbed.
+
 ## Docker
 
 ```bash

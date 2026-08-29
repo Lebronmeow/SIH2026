@@ -8,7 +8,13 @@
 
 import { useMemo } from "react";
 import Map, { useControl } from "@vis.gl/react-maplibre";
+import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+// maplibre-gl v6 loads its tile/glyph worker relative to import.meta.url; under
+// Vite's dep optimizer that sibling file is never emitted (404) and the map
+// silently never renders — no tiles, no error. Point it at the real asset.
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { ScatterplotLayer, PathLayer, GeoJsonLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";

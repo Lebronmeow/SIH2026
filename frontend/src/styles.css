@@ -33,6 +33,15 @@ body,
   height: 100%;
 }
 
+/* The three panels ALWAYS live in row 2 (the 1fr row). Without this, an
+ * absent banner (live mode) lets them auto-place into the auto-height row 1
+ * and the whole app collapses to its content height. */
+.panel.left,
+.panel.right,
+.map-container {
+  grid-row: 2;
+}
+
 /* ------------------------------------------------------------------ banner */
 .banner {
   grid-column: 1 / -1;

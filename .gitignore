@@ -47,3 +47,5 @@ deployed*.json
 live-*.json
 local*.json
 *.output
+query-live*.json
+q[0-9]*.json

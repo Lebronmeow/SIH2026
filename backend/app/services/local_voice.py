@@ -9,9 +9,9 @@ well-known OSS packages (no API keys, no fabricated capability):
   model download. Audio in *any* container the browser records (webm/opus,
   ogg/opus, wav) is decoded by the bundled PyAV — no ffmpeg install.
 * **TTS** — ``edge-tts`` (MIT). Neural voices for Indian English, Hindi,
-  Tamil, Telugu, Malayalam and Bengali via Microsoft's public neural voice
-  endpoint (no key). Odia has no neural voice there — the request fails
-  honestly rather than speaking Odia text with a Hindi voice.
+  Tamil, Telugu, Malayalam, Bengali and Gujarati via Microsoft's public
+  neural voice endpoint (no key). Odia has no neural voice there — the
+  request fails honestly rather than speaking Odia text with a Hindi voice.
 
 Every failure raises :class:`LocalVoiceError`; nothing is ever invented.
 """
@@ -31,10 +31,10 @@ logger = logging.getLogger(__name__)
 # Whisper language codes with an *approved* local model. Odia ("or") is not
 # reliably supported by the small/base models — auto-detect would return some
 # other language's text, which is worse than an honest refusal.
-WHISPER_LANGUAGES = {"en", "hi", "ta", "te", "ml", "bn"}
+WHISPER_LANGUAGES = {"en", "hi", "ta", "te", "ml", "bn", "gu"}
 
 # edge-tts neural voice per ORCA language code (checked against the
-# `edge-tts --list-voices` catalog; en/hi/ta/te/ml/bn all exist, or does not).
+# `edge-tts --list-voices` catalog; en/hi/ta/te/ml/bn/gu all exist, or does not).
 EDGE_VOICES: dict[str, str] = {
     "en": "en-IN-NeerjaNeural",
     "hi": "hi-IN-SwaraNeural",
@@ -42,6 +42,7 @@ EDGE_VOICES: dict[str, str] = {
     "te": "te-IN-ShrutiNeural",
     "ml": "ml-IN-SobhanaNeural",
     "bn": "bn-IN-TanishaaNeural",
+    "gu": "gu-IN-DhwaniNeural",
 }
 
 

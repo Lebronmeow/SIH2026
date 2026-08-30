@@ -122,6 +122,19 @@ class Settings(BaseSettings):
     open_meteo_base_url: str = "https://api.open-meteo.com/v1/forecast"
     open_meteo_marine_base_url: str = "https://marine-api.open-meteo.com/v1/marine"
 
+    # ---------------------------------------------------- official warnings
+    # Cyclone / coastal-alert ingestion (app/providers/official_warnings.py).
+    # GDACS (keyless global mirror) is always on; the *Indian* official feeds
+    # need keys the team registers for — configuration, never code. Without a
+    # key the feed is skipped with an explicit provenance note (honest
+    # capability, never a fabricated "no warnings").
+    gdacs_enabled: bool = True
+    incois_api_key: str | None = None
+    incois_alerts_base_url: str = "https://gemini.incois.gov.in/incoisapi/rest"
+    imd_alerts_url: str | None = None
+    imd_api_key: str | None = None
+    official_warnings_timeout_seconds: float = 8.0
+
     @property
     def llm_enabled(self) -> bool:
         """True when a reasoning layer is configured AND has credentials."""

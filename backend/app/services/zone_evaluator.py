@@ -30,6 +30,7 @@ from app.engines.routing.engine import RouteOptimizationEngine, Route
 from app.engines.scoring.engine import RecommendationScoringEngine, ScoreBreakdown, ScoringWeights
 from app.providers.base import OceanField
 from app.providers.hub import OceanDataHub
+from app.providers.official_warnings import official_warnings, OfficialWarningResult
 from app.schemas.common import (
     BoundingBox,
     Evidence,
@@ -311,6 +312,22 @@ class ZoneEvaluationService:
 
         variables = ("sst", "chlorophyll", "wave_height", "wind_u", "wind_v", "current_u", "current_v")
         t_fields = time.perf_counter()
+
+        # official hazard warnings run concurrently with the field fetches —
+        # they are independent network I/O and must never stack on top
+        official_task = asyncio.create_task(
+            official_warnings(
+                bbox,
+                valid_time,
+                incois_api_key=settings.incois_api_key,
+                imd_alerts_url=settings.imd_alerts_url,
+                imd_api_key=settings.imd_api_key,
+                incois_base_url=settings.incois_alerts_base_url,
+                include_gdacs=settings.gdacs_enabled,
+                timeout=settings.official_warnings_timeout_seconds,
+            )
+        )
+
         self._fields = dict(zip(variables, await asyncio.gather(*(_fetch_one(v) for v in variables))))
         fields = self._fields
         trace.steps.append(
@@ -360,6 +377,7 @@ class ZoneEvaluationService:
         best = next((z for z in scored if not z.score.insufficient), None)
 
         warnings: list[OrcaWarning] = []
+        official_sources: list[Provenance] = []
         if settings.data_mode is DataMode.DEMO:
             warnings.append(
                 OrcaWarning(severity="info", code="DEMO_MODE",
@@ -395,6 +413,25 @@ class ZoneEvaluationService:
                     source="orca",
                     params={"wind_kmh": round(wind_kmh, 0)}))
 
+        # ---- official hazard warnings (GDACS / INCOIS / IMD) — deterministic
+        # ingestion of machine-readable alert feeds; failures degrade to notes
+        # inside the result, never to a fabricated "no warnings".
+        try:
+            official = await official_task
+        except Exception as exc:  # noqa: BLE001 — warnings are best-effort context
+            logger.warning("official warnings failed: %s", exc)
+            official = OfficialWarningResult(notes=[f"official warning feeds failed ({type(exc).__name__})"])
+        official_sources.extend(official.provenance)
+        warnings.extend(official.warnings)
+        if official.warnings:
+            codes = ", ".join(sorted({w.code or "?" for w in official.warnings}))
+            trace.steps.append(f"official warnings: {len(official.warnings)} active ({codes})")
+        trace.steps.append("official warning feeds: " + "; ".join(official.notes))
+        if official.warnings:
+            codes = ", ".join(sorted({w.code or "?" for w in official.warnings}))
+            trace.steps.append(f"official warnings: {len(official.warnings)} active ({codes})")
+        trace.steps.append("official warning feeds: " + "; ".join(official.notes))
+
         recommended = best
         route_out: RouteOut | None = None
         if recommended is not None:
@@ -413,6 +450,7 @@ class ZoneEvaluationService:
         # ---- 8. evidence + sources (+ AIS traffic context, Phase 8)
         evidence = self._build_evidence(recommended, sst_front, chl_front)
         sources = self._collect_sources(fields, sst_front, chl_front)
+        sources.extend(official_sources)
         ais_features, ais_evidence = await self._ais_context(recommended)
         evidence.extend(ais_evidence)
 

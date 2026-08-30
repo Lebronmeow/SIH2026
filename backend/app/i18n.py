@@ -213,7 +213,36 @@ _OR = {
     "p_critical": "ବିପଦ:",
 }
 
-_TEXTS: dict[str, dict[str, str]] = {"en": _EN, "ta": _TA, "te": _TE, "ml": _ML, "hi": _HI, "bn": _BN, "or": _OR}
+_GU = {
+    "searching": "{place} થી {km} કિમી પરિસરમાં શોધાય છે.",
+    "searching_nodist": "{place} થી શોધ ચાલુ છે.",
+    "unable": "હાલના ડેટામાંથી વિશ્વસનીય ભલામણ બનાવી શકાઈ નથી:",
+    "no_candidates": "કઠોર સલામતી તપાસમાં કોઈ વિસ્તાર પાસ થયો નથી.",
+    "rec_zone": "ભલામણ કરેલ વિસ્તાર {id}: {lat}°N, {lon}°E ({place} થી {bearing}°, દરિયાકિનારાથી {dist} કિમી).",
+    "why_prefix": "કારણ: ",
+    "weights": "સ્કોર ORCA ના કામચલાઉ નિર્ણય-વજન વાપરે છે — તે વૈજ્ઞાનિક રીતે ચકાસાયેલા નથી.",
+    "b_productivity": "માછલીની શક્યતા {v}/1",
+    "b_risk": "જોખમ {v}/1 (ઓછું = સારું)",
+    "b_sst": "પાણીનું તાપમાન {v} °C",
+    "b_chl": "ક્લોરોફિલ {v} mg m⁻³",
+    "b_front": "તાપમાન-સીમા પ્રવૃત્તિ {v} (સામાન્યીકૃત)",
+    "b_wave": "મોજાં {v} મી",
+    "b_wind": "પવન {v} કિમી/કલાક",
+    "b_boundary": "દરિયાઈ સરહદથી {v} કિમી",
+    "route_ok": (
+        "સૂચવેલ માર્ગ {km} કિમી છે, તમારી હોડીની ઝડપે આશરે {h} કલાક; તે કોઈ પ્રતિબંધિત વિસ્તાર કે " +
+        "ભારત–શ્રીલંકા દરિયાઈ સરહદને પાર કરતો નથી."
+    ),
+    "route_blocked": "ચેતવણી: આ વિસ્તાર માટે સંપૂર્ણ અનુરૂપ કોઈ માર્ગ બનાવી શકાયો નથી.",
+    "valid": "{t} IST સુધી માન્ય.",
+    "demo": "ડેટા DEMO / CACHED — લાઇવ માપન નથી.",
+    "p_info": "નોંધ:",
+    "p_caution": "સાવધાની:",
+    "p_warning": "ચેતવણી:",
+    "p_critical": "અતિ ગંભીર:",
+}
+
+_TEXTS: dict[str, dict[str, str]] = {"en": _EN, "ta": _TA, "te": _TE, "ml": _ML, "hi": _HI, "bn": _BN, "or": _OR, "gu": _GU}
 
 # Spoken/written names for the LLM system prompt ("answer in Tamil" etc.).
 LANGUAGE_NAMES = {
@@ -224,6 +253,7 @@ LANGUAGE_NAMES = {
     "hi": "Hindi",
     "bn": "Bengali",
     "or": "Odia",
+    "gu": "Gujarati",
 }
 
 

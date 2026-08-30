@@ -215,7 +215,90 @@ Verdict legend:
 | `pathfinding` | **C** | no edge-geofence / time-indexed cost support |
 | WDPA geometry redistribution | **B** | license forbids redistribution → runtime fetch only |
 
-## 10. Rule kept throughout
+## 10. Team-sourced resources — evaluated 2026-08-30
+
+The team circulated nine additional resources mid-build. Each was inspected for
+license, machine readability, and fitness as **advisory input** (ORCA's honesty
+rules: deterministic engines need numeric, attributable, current data — imagery
+portals and synthetic datasets cannot feed a safety recommendation).
+
+### Float-Chat (github.com/ARPANPATRA111/Float-Chat) — **C**
+- **License**: **NONE** (no LICENSE file ⇒ all rights reserved) → never copy code.
+- SIH-2025 prior art: RAG chatbot over Argo floats (Streamlit + Ollama Llama 3.2 +
+  PostGIS + ChromaDB, fully local). Validates the "ask the ocean data" UX.
+- ORCA deliberately differs: the LLM explains *deterministic engine output* and is
+  never the thing that computes an answer — a RAG-bot that answers numeric
+  questions from a vector store cannot guarantee that containment.
+
+### WOD introduction PDF (NCEI `wod_intro.pdf`) — **C**
+- NOAA World Ocean Database documentation (public domain as US-gov work). Bulk
+  archival profile data with no advisory-latency API; background reference for
+  in-situ/Argo provenance. Nothing to wire.
+
+### Kaggle "Shifting Seas" dataset — **D** (as data source)
+- Apache-2.0, but 500 rows / 34 kB, **explicitly synthetic** ("synthetic-yet-realistic"),
+  global reefs (Great Barrier Reef, Red Sea), frozen 2015–2023, "never" updated.
+- Synthetic values must never enter a real advisory (the no-fabrication rule);
+  wrong geography, no currency. Usable only as a toy CSV for slide mock-ups —
+  never behind a recommendation.
+
+### NESDIS "Earth in Real-Time" — **C** (viewer) · underlying data already **A**
+- ArcGIS-browser map app; the page documents no public machine-readable endpoints.
+- The *numeric* NESDIS product ORCA needs (daily chlorophyll) is already wired
+  programmatically via NOAA CoastWatch ERDDAP (`nesdisVHNSQchlaDaily`, §2) — the
+  team's link is the human-facing face of the same agency's holdings.
+
+### MOSDAC AFS (Alerts & Forewarning) — **C**
+- ISRO MOSDAC portal: registration-gated, browser-first; no documented public
+  GeoJSON/alert API was found (page content is JS-only).
+- The official-alert requirement is now covered by the deterministic
+  `official_warnings` provider (2026-08-30): keyless GDACS mirror + config-gated
+  INCOIS GEMINI feeds (High Wave / Swell Surge / Storm Surge) + an IMD hook. If
+  MOSDAC ever exposes a machine-readable feed, it slots in there as one more
+  config-driven source.
+
+### MOSDAC oil-spill page — **C**
+- Title-only page, no documented API. Oil-spill detection is a research product;
+  relevant to the problem statement's pollutant-drift stretch goal as a concept,
+  not a wireable feed today.
+
+### NASA Worldview — **C**
+- Browser for NASA GIBS. GIBS does expose WMTS + an image-download API, but the
+  layers are **imagery** (PNG/JPEG), not numeric grids — cannot feed engines.
+  Public domain; useful for visual satellite context in slides/demo, not as input.
+
+### Copernicus Browser (Dataspace) — **C**
+- ESA's interactive Sentinel browser (team tested an OCEAN-theme custom composite).
+  Interactive-first; programmatic access (openEO/OGC) needs registration.
+  Sentinel-3 OLCI chlorophyll/SST via openEO is a credible post-hackathon upgrade
+  path; not needed for the prototype (ERDDAP covers it keyless).
+
+### Copernicus Marine Service (CMEMS) — **B** (strongest of the nine)
+- Free with registration; `copernicusmarine` toolbox, OPeNDAP/ARCO access;
+  global analysis+forecast physics / waves / biogeochemistry, Indian Ocean
+  covered. The page itself confirms scope ("free, open … blue, white, green").
+- **Role for ORCA**: production failover/upgrade for currents, waves and
+  biogeochemistry behind the same provider-resolution pattern as the Open-Meteo
+  fallback — config-gated, never a hardcoded dependency of the demo path.
+
+### zoom.earth — **C**
+- Neave Interactive viewer (GOES/Meteosat/Himawari imagery, ICON/GFS overlays,
+  storm tracks from NHC/JTWC/IBTrACS). **No public API**; ToS-gated; its fire
+  layer is explicitly "not for the preservation of life or property".
+- At best a manual cross-check screen during the demo; ORCA's cyclone warnings
+  come from GDACS/INCOIS/IMD machine feeds directly (one step upstream of what
+  zoom.earth itself consumes).
+
+### Outcome of the evaluation
+- Shipped as a direct result: `backend/app/providers/official_warnings.py`
+  (GDACS keyless cyclone check + INCOIS GEMINI + IMD hooks) — closing the
+  problem statement's "Cyclone / High Wave Warnings (IMD)" input.
+- Recorded as production path: CMEMS behind the provider registry.
+- Rejected as advisory input: synthetic Kaggle data, imagery-only viewers
+  (NESDIS viewer, Worldview, Copernicus Browser, zoom.earth) — honest-capability
+  verdicts, not blanket dismissals; each has the exact reason above.
+
+## 11. Rule kept throughout
 
 > No code was copied from any repository before its license was checked. GPL
 > components never entered the dependency tree of ORCA's default path. Dataset

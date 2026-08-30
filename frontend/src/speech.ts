@@ -16,6 +16,7 @@ const BCP47: Record<string, string> = {
   hi: "hi-IN",
   bn: "bn-IN",
   or: "or-IN",
+  gu: "gu-IN",
 };
 
 export function langCode(lang: string): string {

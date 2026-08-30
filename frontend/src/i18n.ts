@@ -1,5 +1,5 @@
 /**
- * UI strings for the seven interface languages.
+ * UI strings for the eight interface languages.
  *
  * The English dict is the source of truth: `Key` is derived from it, and every
  * other language must implement every key (tsc enforces `Record<Key, string>`),
@@ -10,7 +10,7 @@
  * same bands the deterministic engines use for their cautions.
  */
 
-export type Lang = "en" | "ta" | "te" | "ml" | "hi" | "bn" | "or";
+export type Lang = "en" | "ta" | "te" | "ml" | "hi" | "bn" | "or" | "gu";
 
 const en = {
   tagline: "Safe & good fishing zones, backed by real ocean data",
@@ -140,6 +140,11 @@ const en = {
   speakUnavailable: "Read-aloud is unavailable in this browser and no voice engine is configured.",
   rt_shore: "Route starts at the nearest water point to the origin (origin is on land)",
   wt_ORIGIN_INLAND: "Departure place '{v}' is a town centre on land — the boat route starts at the nearest water point.",
+  wt_OFFICIAL_CYCLONE: "Official alert: tropical cyclone {n} is active near your area (alert level {v}). Do not go out — follow IMD bulletins.",
+  wt_OFFICIAL_HIGH_WAVE: "Official High Wave Alert active near your area (level {v}).",
+  wt_OFFICIAL_SWELL_SURGE: "Official Swell Surge Alert active near your area (level {v}).",
+  wt_OFFICIAL_STORM_SURGE: "Official Storm Surge Warning active near your area (level {v}).",
+  wt_OFFICIAL_IMD: "Official IMD warning near your area (level {v}): {n}.",
 };
 
 export type Key = keyof typeof en;
@@ -272,6 +277,11 @@ const ta: Record<Key, string> = {
   speakUnavailable: "இந்த உலாவியில் ஒலிக்கும் வசதி இல்லை; குரல் இயந்திரமும் இணைக்கப்படவில்லை.",
   rt_shore: "படகு புறப்படும் இடம்: துறைமுகத்திற்கு அருகிலுள்ள நீர்ப்பகுதி (புறப்பாட்டிடம் நிலம்)",
   wt_ORIGIN_INLAND: "புறப்பாட்டு இடம் '{v}' நிலப்பகுதியில் உள்ள நகர மையம் — படகு அருகிலுள்ள நீர்ப்பகுதியிலிருந்து புறப்படும்.",
+  wt_OFFICIAL_CYCLONE: "அதிகாரப்பூர்வ எச்சரிக்கை: உங்கள் பகுதிக்கு அருகில் புயல் {n} செயலில் உள்ளது (எச்சரிக்கை நிலை {v}). வெளியே செல்லாதீர்கள் — IMD அறிவிப்புகளைப் பின்பற்றுங்கள்.",
+  wt_OFFICIAL_HIGH_WAVE: "உங்கள் பகுதிக்கு அருகில் அதிகாரப்பூர்வ அலை எச்சரிக்கை செயலில் உள்ளது (நிலை {v}).",
+  wt_OFFICIAL_SWELL_SURGE: "உங்கள் பகுதிக்கு அருகில் அதிகாரப்பூர்வ சுவெல் சர்ஜ் எச்சரிக்கை செயலில் உள்ளது (நிலை {v}).",
+  wt_OFFICIAL_STORM_SURGE: "உங்கள் பகுதிக்கு அருகில் அதிகாரப்பூர்வ புயல் அலை எச்சரிக்கை செயலில் உள்ளது (நிலை {v}).",
+  wt_OFFICIAL_IMD: "அதிகாரப்பூர்வ IMD எச்சரிக்கை ({v} நிலை): {n}",
 };
 
 const te: Record<Key, string> = {
@@ -402,6 +412,11 @@ const te: Record<Key, string> = {
   speakUnavailable: "ఈ బ్రౌజర్‌లో వినిపించే సౌలభ్యం లేదు; వాయిస్ ఇంజిన్ కూడా లేదు.",
   rt_shore: "పడవ బయలుదేరే చోటు: రేవుకు సమీపంలోని నీటి ప్రాంతం (బయలుదేరే చోటు భూమిలో ఉంది)",
   wt_ORIGIN_INLAND: "బయలుదేరే స్థలం '{v}' భూమిలో ఉన్న పట్టణ కేంద్రం — పడవ సమీపంలోని నీటి ప్రాంతం నుండి బయలుదేరుతుంది.",
+  wt_OFFICIAL_CYCLONE: "అధికారిక హెచ్చరిక: మీ ప్రాంతం సమీపంలో తుఫాను {n} చురుకుగా ఉంది (హెచ్చరిక స్థాయి {v}). బయటకు వెళ్లవద్దు — IMD బులెటిన్‌లను అనుసరించండి.",
+  wt_OFFICIAL_HIGH_WAVE: "మీ ప్రాంతం సమీపంలో అధికారిక అధిక అలల హెచ్చరిక ఉంది (స్థాయి {v}).",
+  wt_OFFICIAL_SWELL_SURGE: "మీ ప్రాంతం సమీపంలో అధికారిక స్వెల్ సర్జ్ హెచ్చరిక చురుకుగా ఉంది (స్థాయి {v}).",
+  wt_OFFICIAL_STORM_SURGE: "మీ ప్రాంతం సమీపంలో అధికారిక తుఫాను ప్రవాహ హెచ్చరిక చురుకుగా ఉంది (స్థాయి {v}).",
+  wt_OFFICIAL_IMD: "అధికారిక IMD హెచ్చరిక (స్థాయి {v}): {n}",
 };
 
 const ml: Record<Key, string> = {
@@ -532,6 +547,11 @@ const ml: Record<Key, string> = {
   speakUnavailable: "ഈ ബ്രൗസറിൽ ശബ്ദ സൗകര്യമില്ല; വോയ്സ് എഞ്ചിനും ബന്ധിപ്പിച്ചിട്ടില്ല.",
   rt_shore: "ബോട്ട് പുറപ്പെടുന്നിടം: തുറമുഖത്തിനടുത്തുള്ള വെള്ളം (പുറപ്പാട്ടിടം കരയിലാണ്)",
   wt_ORIGIN_INLAND: "പുറപ്പെടുന്ന സ്ഥലം '{v}' കരയിലുള്ള പട്ടണ കേന്ദ്രമാണ് — ബോട്ട് അടുത്തുള്ള വെള്ളത്തിൽ നിന്ന് പുറപ്പെടും.",
+  wt_OFFICIAL_CYCLONE: "ഔദ്യോഗിക മുന്നറിയിപ്പ്: നിങ്ങളുടെ പ്രദേശത്തിന് സമീപം ചുഴലിക്കാറ്റ് {n} സജീവമാണ് (അലേർട്ട് നില {v}). പുറത്തിറങ്ങരുത് — IMD ബുള്ളറ്റിൻ പാലിക്കുക.",
+  wt_OFFICIAL_HIGH_WAVE: "നിങ്ങളുടെ പ്രദേശത്തിന് സമീപം ഔദ്യോഗിക തീരമാല മുന്നറിയിപ്പ് സജീവമാണ് (നില {v}).",
+  wt_OFFICIAL_SWELL_SURGE: "നിങ്ങളുടെ പ്രദേശത്തിന് സമീപം ഔദ്യോഗിക സ്വെൽ സർജ് അലേർട്ട് സജീവമാണ് (നില {v}).",
+  wt_OFFICIAL_STORM_SURGE: "നിങ്ങളുടെ പ്രദേശത്തിന് സമീപം ഔദ്യോഗിക കൊടുങ്കാറ്റ് സർജ് മുന്നറിയിപ്പ് സജീവമാണ് (നില {v}).",
+  wt_OFFICIAL_IMD: "ഔദ്യോഗിക IMD മുന്നറിയിപ്പ് (നില {v}): {n}",
 };
 
 const hi: Record<Key, string> = {
@@ -662,6 +682,11 @@ const hi: Record<Key, string> = {
   speakUnavailable: "इस ब्राउज़र में सुनने की सुविधा नहीं और कोई वॉइस-इंजन भी जुड़ा नहीं है.",
   rt_shore: "नाव जहाँ से छूटती है: बंदरगाह के पास का पानी (प्रस्थान-बिंदु ज़मीन पर है)",
   wt_ORIGIN_INLAND: "प्रस्थान स्थल '{v}' ज़मीन पर बसा कस्बाई केंद्र है — नाव पास के पानी से छूटेगी.",
+  wt_OFFICIAL_CYCLONE: "आधिकारिक चेतावनी: आपके क्षेत्र के पास चक्रवात {n} सक्रिय है (चेतावनी स्तर {v})। बाहर न जाएं — IMD बुलेटिन देखें।",
+  wt_OFFICIAL_HIGH_WAVE: "आपके क्षेत्र के पास आधिकारिक उच्च लहर चेतावनी सक्रिय है (स्तर {v}).",
+  wt_OFFICIAL_SWELL_SURGE: "आपके क्षेत्र के पास आधिकारिक स्वेल सर्ज चेतावनी सक्रिय है (स्तर {v}).",
+  wt_OFFICIAL_STORM_SURGE: "आपके क्षेत्र के पास आधिकारिक स्टॉर्म सर्ज चेतावनी सक्रिय है (स्तर {v}).",
+  wt_OFFICIAL_IMD: "आधिकारिक IMD चेतावनी (स्तर {v}): {n}",
 };
 
 const bn: Record<Key, string> = {
@@ -792,6 +817,11 @@ const bn: Record<Key, string> = {
   speakUnavailable: "এই ব্রাউজারে শোনার সুবিধা নেই; ভয়েস-ইঞ্জিনও যুক্ত নেই.",
   rt_shore: "নৌকা যাত্রা শুরু করে যেখান থেকে: বন্দরের কাছের জল (যাত্রাশুরুর জায়গা স্থলে)",
   wt_ORIGIN_INLAND: "যাত্রা শুরুর স্থান '{v}' স্থলে থাকা শহরের কেন্দ্র — নৌকা কাছের জল থেকে যাত্রা শুরু করবে.",
+  wt_OFFICIAL_CYCLONE: "সরকারি সতর্কতা: আপনার এলাকার কাছে ঘূর্ণিঝড় {n} সক্রিয় (সতর্কতা স্তর {v})। বাইরে যাবেন না — IMD বুলেটিন অনুসরণ করুন।",
+  wt_OFFICIAL_HIGH_WAVE: "আপনার এলাকার কাছে সরকারি উচ্চ ঢেউ সতর্কতা সক্রিয় (স্তর {v}).",
+  wt_OFFICIAL_SWELL_SURGE: "আপনার এলাকার কাছে সরকারি স্বেল সার্জ সতর্কতা সক্রিয় (স্তর {v}).",
+  wt_OFFICIAL_STORM_SURGE: "আপনার এলাকার কাছে সরকারি স্টর্ম সার্জ সতর্কবার্তা সক্রিয় (স্তর {v}).",
+  wt_OFFICIAL_IMD: "সরকারি IMD সতর্কবার্তা (স্তর {v}): {n}",
 };
 
 const or: Record<Key, string> = {
@@ -921,9 +951,148 @@ const or: Record<Key, string> = {
   speakUnavailable: "ଏହି ବ୍ରାଉଜରରେ ଶୁଣାଇବା ସୁବିଧା ନାହିଁ; ଭଏସ୍ ଇଞ୍ଜିନ୍ ମଧ୍ୟ ଜଡ଼ା ହୋଇନାହିଁ.",
   rt_shore: "ନୌକା ଛାଡ଼ୁଥିବା ସ୍ଥାନ: ବନ୍ଦର ପାଖରେ ଥିବା ପାଣି (ଯାତ୍ରା ଆରମ୍ଭ ସ୍ଥାନ ମାଟିରେ ଅଛି)",
   wt_ORIGIN_INLAND: "ଯାତ୍ରା ଆରମ୍ଭ ସ୍ଥାନ '{v}' ମାଟିରେ ଥିବା ସହର କେନ୍ଦ୍ର — ନୌକା ପାଖ ପାଣିରୁ ଯାତ୍ରା ଆରମ୍ଭ କରିବ.",
+  wt_OFFICIAL_CYCLONE: "ସରକାରୀ ଚେତାବନୀ: ଆପଣଙ୍କ ଅଞ୍ଚଳ ପାଖରେ ଘୂର୍ଣ୍ଣିବାତ୍ୟା {n} ସକ୍ରିୟ ଅଛି (ଚେତାବନୀ ସ୍ତର {v})। ବାହାରକୁ ଯିବେ ନାହିଁ — IMD ବୁଲେଟିନ୍ ଅନୁସରଣ କରନ୍ତୁ.",
+  wt_OFFICIAL_HIGH_WAVE: "ଆପଣଙ୍କ ଅଞ୍ଚଳ ପାଖରେ ସରକାରୀ ଉଚ୍ଚ ଢେଉ ଚେତାବନୀ ସକ୍ରିୟ (ସ୍ତର {v}).",
+  wt_OFFICIAL_SWELL_SURGE: "ଆପଣଙ୍କ ଅଞ୍ଚଳ ପାଖରେ ସରକାରୀ ସ୍ୱେଲ୍ ସର୍ଜ୍ ଚେତାବନୀ ସକ୍ରିୟ (ସ୍ତର {v}).",
+  wt_OFFICIAL_STORM_SURGE: "ଆପଣଙ୍କ ଅଞ୍ଚଳ ପାଖରେ ସରକାରୀ ଷ୍ଟର୍ମ ସର୍ଜ ଚେତାବନୀ ସକ୍ରିୟ ଅଛି (ସ୍ତର {v}).",
+  wt_OFFICIAL_IMD: "ସରକାରୀ IMD ଚେତାବନୀ (ସ୍ତର {v}): {n}",
 };
 
-export const STRINGS: Record<Lang, Record<Key, string>> = { en, ta, te, ml, hi, bn, or };
+const gu: Record<Key, string> = {
+  tagline: "વાસ્તવિક સમુદ્ર માહિતી આધારિત સલામત અને સારા માછીમારી વિસ્તાર",
+  askOrca: "ORCAને પૂછો",
+  placeholder: "દા.ત. કાલે સવારે રામેશ્વરમથી 20 કિમી દૂર સૌથી સલામત અને સારી માછીમારી જગ્યા કઈ છે?",
+  examples: "નમૂના પ્રશ્નો",
+  ask: "પૂછો",
+  working: "કામ ચાલુ છે…",
+  traceTitle: "કાર્યપ્રવાહ વિગત",
+  sourcesTitle: "માહિતી સ્રોતો",
+  pilotRegion: "પ્રાયોગિક વિસ્તાર",
+  llmOn: "LLM તર્ક સ્તર: {p} (માત્ર સમજૂતી/સંચાલન માટે)",
+  llmOff: "LLM તર્ક સ્તર: બંધ — નિશ્ચિત પાઇપલાઇન",
+  micServerBhashini: "અવાજ ઇનપુટ (Bhashini સ્પીચ રેકગ્નિશન)",
+  micServerLocal: "અવાજ ઇનપુટ (Whisper સ્પીચ રેકગ્નિશન — સર્વર પર પ્રોસેસ થાય છે)",
+  micBrowser: "અવાજ ઇનપુટ (આ બ્રાઉઝરનું સ્પીચ — Chrome/Edge માં સારું ચાલે)",
+  micNone: "આ બ્રાઉઝરમાં અવાજ ઇનપુટ ઉપલબ્ધ નથી",
+  listen: "આ સાંભળો",
+  stopSound: "અવાજ બંધ કરો",
+  v_go_t: "માછીમારી માટે સારો દિવસ",
+  v_go_s: "આ સફર માટે કોઈ સલામતી ચેતવણી નોંધાઈ નથી.",
+  v_care_t: "સાચવીને જાઓ",
+  v_care_s: "નીકળતાં પહેલાં નીચેની ચેતવણીઓ વાંચો.",
+  v_stop_t: "બહાર ન જાઓ",
+  v_stop_s: "ગંભીર ચેતવણી સક્રિય છે. બંદરમાં રહો.",
+  v_none_t: "હમણાં સલાહ આપી શકાતી નથી",
+  whatToDo: "તમે શું કરી શકો: વધુ માહિતી ઉપલબ્ધ થાય ત્યારે ફરી પૂછો.",
+  missingData: "માહિતી ગેરહાજર",
+  bestZones: "શ્રેષ્ઠ વિસ્તાર — એક પર ટેપ કરો",
+  rankHint: "નકશા પર દરેક ટપકાંમાં આ જ નંબર દેખાય છે.",
+  whyZone: "આ વિસ્તાર કેમ?",
+  noExplanation: "કોઈ સમજૂતી બની નથી.",
+  validFor: "માન્ય સમય",
+  generated: "તૈયાર કરેલ",
+  pickedNote: "તમે નકશા પર બીજો વિસ્તાર પસંદ કર્યો — તેની વિગતો નીચે છે.",
+  z_conds: "આ વિસ્તારમાં માછીમારીની સ્થિતિ",
+  z_conds_hint: "આ જ જગ્યાએ દરિયો કેવો છે — ઉપગ્રહો અને બોય દ્વારા માપેલું.",
+  expert_scores: "નિષ્ણાત વિગત: સ્કોર અને આંકડા",
+  expert_evidence: "નિષ્ણાત વિગત: પુરાવા",
+  glossary: "શબ્દ યાદી — આ શબ્દોનો અર્થ શું છે",
+  raw: "કાચો જવાબ",
+  kv_overall: "કુલ સ્કોર",
+  kv_overall_note: "(વધુ સારું)",
+  kv_boundary: "દરિયાઈ સરહદથી અંતર",
+  kv_front: "SST ફ્રન્ટ મજબૂતાઈ",
+  m_fish: "માછલીની શક્યતા",
+  m_fish_hint: "માછલી માટે પાણી કેટલું આશાસ્પદ લાગે છે (0–100%)",
+  m_risk: "સલામતી જોખમ",
+  m_risk_hint: "પરિસ્થિતિ કેટલી જોખમી છે (ઓછું = સારું)",
+  t_sst: "પાણીનું તાપમાન",
+  t_sst_m: "જ્યાં તાપમાન ઝડપથી બદલાય છે ત્યાં માછલી ઘણી વાર ભેગી થાય છે",
+  t_chl: "પાણીમાં વનસ્પતિ જીવન",
+  t_chl_m: "વધુ વનસ્પતિ → વધુ નાની માછલી → મોટી માછલી ખાવા આવે છે",
+  t_wave: "મોજાંની ઊંચાઈ",
+  t_wave_m: "મોજાં કેટલાં મોટાં છે",
+  t_wind: "પવનની ગતિ",
+  t_wind_m: "પવન કેટલો તેજ ફૂંકાય છે",
+  t_cur: "પ્રવાહની તાકાત",
+  t_cur_m: "પાણી હોડીને કેટલું ધકેલે છે",
+  badge_missing: "માહિતી નથી",
+  badge_cached: "કેશ થયેલ",
+  retrieved: "મેળવેલ",
+  w_calm: "શાંત દરિયો",
+  w_slight: "નાનાં મોજાં",
+  w_moderate: "મધ્યમ મોજાં",
+  w_rough: "ખરબૂર દરિયો",
+  w_vrough: "ખૂબ ખરબૂર દરિયો",
+  wn_light: "ધીમો પવન",
+  wn_gentle: "હળવો પવન",
+  wn_strong: "તેજ પવન",
+  wn_vstrong: "અતિ તેજ પવન",
+  trip: "તમારી હોડીની સફર",
+  tr_distance: "જવાનું અંતર",
+  tr_time: "પાણી પર સમય",
+  tr_wave: "રસ્તામાં સૌથી મોટું મોજું",
+  tr_blocked: "કોઈ સલામત માર્ગ દોરી શકાયો નથી — કોઈ કઠોર સરહદ અથવા સંરક્ષિત વિસ્તાર માર્ગ અટકાવે છે. નીચેની ચેતવણીઓ વાંચો.",
+  tr_explain: "“સલામત માર્ગ” એટલે શું?",
+  tr_explain_b:
+    "ORCA દરિયાકિનારાથી માછીમારી વિસ્તાર સુધી હોડીનો માર્ગ બનાવે છે અને દરેક ડગલાંને અસલી નકશા સ્તરો સામે ચકાસે છે: " +
+    "ભારત–શ્રીલંકા દરિયાઈ સરહદ (IMBL), સંરક્ષિત દરિયાઈ ઉદ્યાનો અને જમીન. બધાથી દૂર રહેતો હોય તો જ માર્ગ દોરાય છે, " +
+    "અને રસ્તામાં મોજાં તથા પવનનો ડેટા તેને શાંત પાણી તરફ વાળે છે. આ માર્ગ નિશ્ચિત રૂટિંગ એન્જિનથી ગણાય છે — " +
+    "AI ક્યારેય માર્ગ દોરતું નથી કે મંજૂર કરતું નથી.",
+  h_min: "આશરે {m} મિનિટ",
+  h_h: "આશરે {h} કલાક",
+  h_hm: "આશરે {h} કલાક {m} મિનિટ",
+  d_N: "ઉત્તર",
+  d_NE: "ઈશાન",
+  d_E: "પૂર્વ",
+  d_SE: "અગ્નિ",
+  d_S: "દક્ષિણ",
+  d_SW: "નૈઋતિ",
+  d_W: "પશ્ચિમ",
+  d_NW: "વાયવ્ય",
+  km: "કિમી",
+  wTitle: "ચેતવણીઓ",
+  sev_info: "નોંધ",
+  sev_caution: "સાવધાની",
+  sev_warning: "ચેતવણી",
+  sev_critical: "અતિ ગંભીર",
+  wt_ROUGH_SEA: "સાવધાની: {v} મીટરનાં મોજાં — ખરબૂર દરિયો; નાની હોડીઓ સાચવીને ચલાવો.",
+  wt_STRONG_WIND: "સાવધાની: {v} કિમી/કલાક પવન — નાની હોડી સાચવીને ચલાવો.",
+  wt_NO_WAVE_DATA: "ચેતવણી: મોજાંનો ડેટા ઉપલબ્ધ નથી — મોજાંનું જોખમ મૂલ્યાંકન થયું નથી; સલામતી આંકાશ અપૂર્ણ ગણો.",
+  wt_DEMO_MODE: "કેશ થયેલ DEMO ડેટામાંથી — મૂલ્યો લાઇવ નોંધાયેલા નથી.",
+  wt_MANY_MISSING_PRODUCTS: "{total} માંથી {n} સમુદ્ર ડેટા ઉત્પાદનો પ્રદાતા પાસે ઉપલબ્ધ ન હતા.",
+  gl_zone: "ઝોન — દરિયાનો એવો ભાગ જેને ORCA માછીમારી અને સલામતી માટે સ્કોર કરે છે.",
+  gl_front: "ફ્રન્ટ — જ્યાં ગરમ અને ઠંડુ પાણી ભેગું થાય છે તે રેખા; નાની માછલી ત્યાં ભેગી થાય છે.",
+  gl_imbl: "IMBL — ભારત–શ્રીલંકા દરિયાઈ સરહદની રેખા. તેને પાર કરવી પ્રતિબંધિત છે.",
+  gl_mpa: "MPA — સમુદ્ર સંરક્ષિત વિસ્તાર જ્યાં માછીમારી પ્રતિબંધિત છે.",
+  gl_chl: "ક્લોરોફિલ — પાણીમાં વનસ્પતિ જીવન; માછલી ખવડાવવાની નિશાની.",
+  gl_sst: "SST — સમુદ્ર સપાટીનું તાપમાન.",
+  gl_cached: "કેશ થયેલ — પહેલાં માપી સંગ્રહ કરેલું, આ ક્ષણે લાઇવ નથી.",
+  lg_best: "શ્રેષ્ઠ વિસ્તાર (★1)",
+  lg_others: "બીજા વિસ્તારો — નંબર = રેન્ક (દબાવો)",
+  lg_start: "શરૂ",
+  lg_route: "સલામત માર્ગ",
+  lg_ring: "કિનારાથી શોધ વિસ્તાર",
+  lg_imbl: "ભારત–શ્રીલંકા સરહદ",
+  lg_mpa: "સંરક્ષિત વિસ્તાર",
+  startLabel: "શરૂ",
+  mapError: "હાલના ડેટામાંથી વિશ્વસનીય ભલામણ બનાવી શકાઈ નથી.",
+  mapLoading: "નકશો લોડ થાય છે…",
+  basemapDegraded: "મુખ્ય નકશા ડેટા બંધ છે — વૈકલ્પિક નકશો બતાવી રહ્યા છીએ.",
+  recommendation: "ભલામણ",
+  emptyRight: "પુરાવા સાથેની ભલામણ જોવા કોઈ પ્રશ્ન પૂછો.",
+  speakFail: "વાંચીને સંભળાવવું નિષ્ફળ: {e}",
+  speakUnavailable: "આ બ્રાઉઝરમાં વાંચીને સંભળાવવાની સુવિધા નથી અને કોઈ વૉઇસ એન્જિન ગોઠવેલું નથી.",
+  rt_shore: "હોડી દરિયાકિનારા નજીકના પાણીથી ઊતરે છે (શરૂઆતનું સ્થળ જમીન પર છે)",
+  wt_ORIGIN_INLAND: "નીચે ઊતરવાનું સ્થળ '{v}' જમીન પરનું શહેર કેન્દ્ર છે — હોડીનો માર્ગ સૌથી નજીકના પાણીના બિંદુએથી શરૂ થાય છે.",
+  wt_OFFICIAL_CYCLONE: "સત્તાવાર ચેતવણી: તમારા વિસ્તાર પાસે ચક્રવાત {n} સક્રિય છે (એલર્ટ સ્તર {v}). બહાર ન જાઓ — IMD બુલેટિન અનુસરો.",
+  wt_OFFICIAL_HIGH_WAVE: "તમારા વિસ્તાર પાસે સત્તાવાર હાઇ વેવ એલર્ટ સક્રિય છે (સ્તર {v}).",
+  wt_OFFICIAL_SWELL_SURGE: "તમારા વિસ્તાર પાસે સત્તાવાર સ્વેલ સર્જ એલર્ટ સક્રિય છે (સ્તર {v}).",
+  wt_OFFICIAL_STORM_SURGE: "તમારા વિસ્તાર પાસે સત્તાવાર સ્ટોર્મ સર્જ ચેતવણી સક્રિય છે (સ્તર {v}).",
+  wt_OFFICIAL_IMD: "સત્તાવાર IMD ચેતવણી (સ્તર {v}): {n}",
+};
+
+export const STRINGS: Record<Lang, Record<Key, string>> = { en, ta, te, ml, hi, bn, or, gu };
 
 /** Localize a template like "about {h} h {m} min" by replacing {placeholders}. */
 export function fmt(template: string, params: Record<string, string | number>): string {
@@ -940,7 +1109,7 @@ export function t(lang: string): Record<Key, string> {
 /** BCP-47 locale for Intl date/time formatting in the UI language. */
 export function localeOf(lang: string): string {
   const map: Record<Lang, string> = {
-    en: "en-IN", ta: "ta-IN", te: "te-IN", ml: "ml-IN", hi: "hi-IN", bn: "bn-IN", or: "or-IN",
+    en: "en-IN", ta: "ta-IN", te: "te-IN", ml: "ml-IN", hi: "hi-IN", bn: "bn-IN", or: "or-IN", gu: "gu-IN",
   };
   return map[(lang as Lang)] ?? "en-IN";
 }

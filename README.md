@@ -49,6 +49,16 @@ Open **http://localhost:8000/docs** for the API reference.
 > fetched and merged per request); chlorophyll can be `MISSING` when today's
 > granule is not yet published. Reference boundary layers (India–Sri Lanka
 > IMBL treaty lines, protected areas, land masks) load in **both** modes.
+>
+> **Why NOAA/PacIOOS serve the forecast fields and not INCOIS/MOSDAC**: the
+> provider layer is deliberately source-agnostic — INCOIS *is* in the chain
+> (Argo profiles via INCOIS ERDDAP, and official High-Wave/Swell/Storm-Surge
+> alerts via the GEMINI API when `ORCA_INCOIS_API_KEY` is set), but INCOIS's
+> gridded ERDDAP holdings end 2011, so live forecast fields come from whichever
+> provider publishes current numeric grids (NOAA/PacIOOS/Open-Meteo). Swapping
+> in an Indian provider is a `datasets.json` entry, not a code change. Cyclone /
+> high-wave warnings ingest from GDACS (keyless) + INCOIS GEMINI + a config-only
+> IMD hook — see `app/providers/official_warnings.py`.
 
 ### Demo data pack
 

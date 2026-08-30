@@ -18,6 +18,7 @@ const LANGUAGES = [
   { code: "hi", label: "हिन्दी (Hindi)" },
   { code: "bn", label: "বাংলা (Bengali)" },
   { code: "or", label: "ଓଡ଼ିଆ (Odia)" },
+  { code: "gu", label: "ગુજરાતી (Gujarati)" },
 ];
 
 export default function QueryPanel(props: {

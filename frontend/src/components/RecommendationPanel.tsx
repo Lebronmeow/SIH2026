@@ -223,6 +223,16 @@ function warningText(w: Warning, L: L): string {
       return i18n.fmt(L.wt_MANY_MISSING_PRODUCTS, { n: p.count ?? "—", total: p.total ?? "—" });
     case "ORIGIN_INLAND":
       return i18n.fmt(L.wt_ORIGIN_INLAND, { v: p.place ?? "" });
+    case "OFFICIAL_CYCLONE":
+      return i18n.fmt(L.wt_OFFICIAL_CYCLONE, { n: p.name ?? "—", v: p.level ?? "—" });
+    case "OFFICIAL_HIGH_WAVE":
+      return i18n.fmt(L.wt_OFFICIAL_HIGH_WAVE, { v: p.level ?? "—" });
+    case "OFFICIAL_SWELL_SURGE":
+      return i18n.fmt(L.wt_OFFICIAL_SWELL_SURGE, { v: p.level ?? "—" });
+    case "OFFICIAL_STORM_SURGE":
+      return i18n.fmt(L.wt_OFFICIAL_STORM_SURGE, { v: p.level ?? "—" });
+    case "OFFICIAL_IMD":
+      return i18n.fmt(L.wt_OFFICIAL_IMD, { v: p.level ?? "—", n: p.name ?? "" });
     default:
       return w.message;
   }

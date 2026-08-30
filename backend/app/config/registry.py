@@ -77,8 +77,10 @@ _SOURCES: Final[tuple[DataSource, ...]] = (
         license_verified=True,
         base_url="https://coastwatch.pfeg.noaa.gov/erddap",
         notes=(
-            "Verified live datasets: jplMURSST41 (SST 0.01°, current), nesdisVHNSQchlaDaily "
-            "(chlorophyll 4 km), nesdisSSH1day (geostrophic currents, ~5 mo lag → flagged STALE)."
+            "Verified live from the dev machine: jplMURSST41 (SST 0.01°, current), "
+            "erdMH1chla1day_R2022NRT (Aqua MODIS chla 4 km), nesdisSSH1day (geostrophic currents, "
+            "~5 mo lag → flagged STALE). CAVEAT: pfeg times out from the Render deployment egress "
+            "(2026-08-30) — deployed variables were moved to erddap-noaa-nws / pacioos."
         ),
         tags=("ocean", "erddap", "sst", "chlorophyll"),
     ),
@@ -94,7 +96,9 @@ _SOURCES: Final[tuple[DataSource, ...]] = (
         base_url="https://coastwatch.noaa.gov/erddap",
         notes=(
             "Verified live: noaacwBLENDEDNRTcurrentsDaily (0.25° blended NRT ocean currents, "
-            "u_current/v_current, current to within ~2 days)."
+            "u_current/v_current, current to within ~2 days) and noaacwNPPN20VIIRSDINEOFDaily "
+            "(chlor_a, gap-filled VIIRS 9 km daily — deployed primary chlorophyll). This host is "
+            "reachable from both the dev machine and Render."
         ),
         tags=("ocean", "erddap", "currents"),
     ),

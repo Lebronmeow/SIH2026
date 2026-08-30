@@ -1,5 +1,5 @@
 {
-  "$comment": "ORCA dataset catalog. All dataset IDs verified against their servers on 2026-08-29 (live subset queries executed from this machine). Logical variable -> concrete provider mapping. Staleness caveats: nesdisSSH1day runs ~5 months behind (kept as fallback); primary currents source is noaacwBLENDEDNRTcurrentsDaily (verified current to 2026-08-27). Stale data is flagged QualityFlag.STALE by the provider layer — never silently presented as current.",
+  "$comment": "ORCA dataset catalog. All dataset IDs verified against their servers on 2026-08-29 (live subset queries executed from this machine). Logical variable -> concrete provider mapping. Staleness caveats: nesdisSSH1day runs ~5 months behind (kept as fallback); primary currents source is noaacwBLENDEDNRTcurrentsDaily (verified current to 2026-08-27). Stale data is flagged QualityFlag.STALE by the provider layer — never silently presented as current. Host reachability differs by vantage: pfeg serves this dev machine but times out from the Render deployment — variables were moved to coastwatch.noaa.gov / pacioos accordingly (2026-08-30).",
   "datasets": {
     "sst": {
       "provider": "erddap",
@@ -22,14 +22,14 @@
     },
     "chlorophyll": {
       "provider": "erddap",
-      "source_id": "erddap-noaa",
-      "dataset_id": "erdMH1chla1day_R2022NRT",
+      "source_id": "erddap-noaa-nws",
+      "dataset_id": "noaacwNPPN20VIIRSDINEOFDaily",
       "protocol": "griddap",
-      "variable": "chlorophyll",
+      "variable": "chlor_a",
       "unit": "mg m-3",
-      "spatial_resolution": "0.0417°",
+      "spatial_resolution": "0.083°",
       "extras": {
-        "note": "Aqua MODIS L3 SMI R2022 NRT, served directly on pfeg. The nesdisVHNSQ/VHN chla datasets 302-redirect to coastwatch.noaa.gov, which was unreachable on 2026-08-30 — this one is hosted locally and verified current (2026-08-28)."
+        "note": "VIIRS S-NPP/NOAA-20 chlorophyll, DINEOF gap-filled (clouds interpolated), global 9 km, NRT daily. Moved off pfeg 2026-08-30: pfeg times out from the Render egress (both jplMURSST41 SST and erdMH1chla1day chla failed there while coastwatch.noaa.gov currents succeeded), and gap-filling also fixes monsoon cloud masking that left <1% finite MODIS pixels in the Gulf of Mannar."
       }
     },
     "current_u": {

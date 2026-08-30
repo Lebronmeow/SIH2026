@@ -119,6 +119,11 @@ class Settings(BaseSettings):
     # worker mid-transcription (observed 2026-08-30 as an empty-body 502).
     # Set ORCA_LOCAL_ASR_MODEL=small on a bigger plan for better accuracy.
     local_asr_model: str = "base"
+    # Beam width for ASR decoding. beam_size=5 measured ~100 s per 8 s clip on
+    # the deployed free-tier container (2026-08-30) — the throttled CPU is the
+    # bottleneck, not model load. Greedy (1) is ~5x faster with slightly
+    # noisier transcripts; set ORCA_LOCAL_ASR_BEAM_SIZE=5 on a bigger plan.
+    local_asr_beam_size: int = 1
 
     # ------------------------------------------------------------- providers
     protected_planet_api_key: str | None = None

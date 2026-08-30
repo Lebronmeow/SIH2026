@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
@@ -69,6 +70,46 @@ STRONG_WIND_KMH = 30.0
 def distance_km_between(a: LatLon, b: LatLon) -> float:
     _az, _back, m = _GEOD.inv(a.lon, a.lat, b.lon, b.lat)
     return m / 1000.0
+
+
+class _FastSampler:
+    """Nearest-cell lookup on a plain numpy array.
+
+    xarray ``.sel(method='nearest')`` costs ~1000× more per call than index
+    arithmetic — irrelevant for one-off point reads, decisive inside A*,
+    which samples hazard fields tens of thousands of times per route.
+    Values are read-only snapshots; the fields do not change during a route.
+    """
+
+    __slots__ = ("vals", "lats", "lons")
+
+    def __init__(self, da: xr.DataArray | None) -> None:
+        ok = False
+        vals = lats = lons = None
+        if da is not None and not da.size == 0:
+            v = da
+            if "time" in v.dims and v.sizes.get("time", 0) > 1:
+                v = v.isel(time=-1, drop=True)
+            vals = np.asarray(v.values, dtype=float)
+            lat_c = v.coords.get("latitude")
+            lon_c = v.coords.get("longitude")
+            if vals.ndim == 2 and lat_c is not None and lon_c is not None:
+                lats = np.asarray(lat_c.values, dtype=float)
+                lons = np.asarray(lon_c.values, dtype=float)
+                ok = lats.ndim == 1 and lons.ndim == 1 and vals.shape == (lats.size, lons.size)
+        if not ok:
+            vals = lats = lons = None
+        self.vals = vals
+        self.lats = lats
+        self.lons = lons
+
+    def at(self, lat: float, lon: float) -> float | None:
+        if self.vals is None:
+            return None
+        j = int(np.abs(self.lats - lat).argmin())
+        i = int(np.abs(self.lons - lon).argmin())
+        v = self.vals[j, i]
+        return float(v) if math.isfinite(v) else None
 
 
 class ZoneEvaluationService:
@@ -269,9 +310,14 @@ class ZoneEvaluationService:
                 )
 
         variables = ("sst", "chlorophyll", "wave_height", "wind_u", "wind_v", "current_u", "current_v")
+        t_fields = time.perf_counter()
         self._fields = dict(zip(variables, await asyncio.gather(*(_fetch_one(v) for v in variables))))
         fields = self._fields
-        trace.steps.append("fetched ocean fields: " + ", ".join(f"{k}={'ok' if not v.is_empty else 'MISSING'}" for k, v in fields.items()))
+        trace.steps.append(
+            "fetched ocean fields: "
+            + ", ".join(f"{k}={'ok' if not v.is_empty else 'MISSING'}" for k, v in fields.items())
+            + f" ({time.perf_counter() - t_fields:.1f}s)"
+        )
 
         # ---- 4. front detection (deterministic)
         sst_front: FrontResult | None = None
@@ -291,6 +337,7 @@ class ZoneEvaluationService:
         current_speed = self._speed_field(fields.get("current_u"), fields.get("current_v"))
 
         # ---- 5. per-candidate evaluation
+        t_zones = time.perf_counter()
         zones: list[ZoneEvaluation] = []
         for cand in candidates:
             zone = await self._evaluate_one(
@@ -298,6 +345,7 @@ class ZoneEvaluationService:
                 sst_front, chl_front,
             )
             zones.append(zone)
+        zone_s = time.perf_counter() - t_zones
 
         # ---- 6. rank (excluded last, then by overall score desc)
         zones.sort(key=lambda z: (z.excluded, -(z.score.overall_score if z.score.overall_score is not None else -999)))
@@ -350,11 +398,14 @@ class ZoneEvaluationService:
         recommended = best
         route_out: RouteOut | None = None
         if recommended is not None:
+            t_route = time.perf_counter()
             route = await self._build_route(origin, recommended)
+            route_s = time.perf_counter() - t_route
             route_out = self._route_to_out(route)
             trace.steps.append(
                 f"ranked {len(scored)} scorable zones; recommended {recommended.candidate.id} "
-                f"(overall={recommended.score.overall_score}); safe route {route_out.distance_km:.1f} km"
+                f"(overall={recommended.score.overall_score}); safe route {route_out.distance_km:.1f} km "
+                f"({zone_s:.1f}s zone scoring, {route_s:.1f}s routing)"
             )
         else:
             trace.steps.append(f"ranked {len(scored)} scorable zones; none scoreable → INSUFFICIENT_DATA")
@@ -546,7 +597,7 @@ class ZoneEvaluationService:
         dest = LatLon(lat=zone.candidate.lat, lon=zone.candidate.lon)
         engine = RouteOptimizationEngine(
             safety_engine=self.safety,
-            hazard_sampler=self._route_hazard,
+            hazard_sampler=self._route_hazard_sampler(),
             vessel_speed_knots=self.vessel_speed_knots,
             # 0.025° ≈ 2.7 km cells: fine enough to thread the Palk Strait /
             # Pamban channel (a 5.5 km cell could not resolve the island
@@ -555,16 +606,31 @@ class ZoneEvaluationService:
         )
         return engine.calculate_safe_route(origin, dest)
 
-    def _route_hazard(self, lat: float, lon: float):
+    def _route_hazard_sampler(self):
+        """Hazard sampler for the router, built ONCE per route.
+
+        Fields are already in memory (no network); the numpy-backed
+        samplers make each cell read ~µs instead of an xarray `.sel()`.
+        """
         from app.engines.routing.engine import HazardSample
 
-        # hazard from the already-fetched fields (synchronous, no network)
-        return HazardSample(
-            wave_height_m=self._sample(self._latest(self._fields.get("wave_height")), lat, lon),
-            wind_speed_ms=self._wind_ms(lat, lon),
-            current_u_ms=self._sample(self._latest(self._fields.get("current_u")), lat, lon),
-            current_v_ms=self._sample(self._latest(self._fields.get("current_v")), lat, lon),
-        )
+        wave = _FastSampler(self._latest(self._fields.get("wave_height")))
+        wind_u = _FastSampler(self._latest(self._fields.get("wind_u")))
+        wind_v = _FastSampler(self._latest(self._fields.get("wind_v")))
+        cur_u = _FastSampler(self._latest(self._fields.get("current_u")))
+        cur_v = _FastSampler(self._latest(self._fields.get("current_v")))
+
+        def sample(lat: float, lon: float) -> HazardSample:
+            wu = wind_u.at(lat, lon)
+            wv = wind_v.at(lat, lon)
+            return HazardSample(
+                wave_height_m=wave.at(lat, lon),
+                wind_speed_ms=math.hypot(wu, wv) if wu is not None and wv is not None else None,
+                current_u_ms=cur_u.at(lat, lon),
+                current_v_ms=cur_v.at(lat, lon),
+            )
+
+        return sample
 
     @staticmethod
     def _latest(field: OceanField | None) -> xr.DataArray | None:
@@ -574,13 +640,6 @@ class ZoneEvaluationService:
         if "time" in da.dims and da.sizes.get("time", 0) > 1:
             da = da.isel(time=-1, drop=True)
         return da
-
-    def _wind_ms(self, lat: float, lon: float) -> float | None:
-        u = self._sample(self._latest(self._fields.get("wind_u")), lat, lon)
-        v = self._sample(self._latest(self._fields.get("wind_v")), lat, lon)
-        if u is None or v is None:
-            return None
-        return math.hypot(u, v)
 
     @staticmethod
     def _route_to_out(route: Route) -> RouteOut:

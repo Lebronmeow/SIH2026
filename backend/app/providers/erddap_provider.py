@@ -18,7 +18,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import socket
+import time
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit
 
 import numpy as np
 import pandas as pd
@@ -47,6 +50,35 @@ _TIME_NAMES = ("time", "t")
 
 _USER_AGENT = {"User-Agent": "ORCA-demo-fetch/0.1 (hackathon prototype; contact via repo)"}
 
+# Host-level circuit breaker. Datacenter/cloud IPs (Render, AWS…) are commonly
+# blocked by public ERDDAP hosts — SYNs are dropped (connect hangs) or the
+# connection is accepted and the response stalls (read hangs). One dead HOST
+# usually serves several of our variables (coastwatch: SST + chlorophyll…), so
+# a per-variable breaker would re-burn the same host once per variable. This
+# layer is keyed by host and shared by every ErddapProvider instance.
+_HOST_DOWN_S = 600.0      # retry a dead host after this long
+_HOST_PROBE_OK_S = 300.0  # cache a successful reachability probe this long
+_PROBE_TIMEOUT_S = 2.0
+_host_down_at: dict[str, float] = {}
+_host_probe_ok_at: dict[str, float] = {}
+
+
+def _is_transport_failure(exc: BaseException) -> bool:
+    """True when an exception chain says 'the network failed', False when the
+    server answered (HTTP 4xx/5xx → HTTPError — the host is clearly up)."""
+    import requests as _requests
+
+    e: BaseException | None = exc
+    for _ in range(6):
+        if e is None:
+            break
+        if isinstance(e, _requests.exceptions.HTTPError):
+            return False
+        if isinstance(e, (_requests.exceptions.ConnectionError, _requests.exceptions.Timeout)):
+            return True
+        e = e.__cause__ or e.__context__
+    return isinstance(exc, (socket.timeout, TimeoutError, ConnectionError, OSError))
+
 
 def _install_erddapy_default_headers() -> None:
     """Set a truthful User-Agent on every erddapy HTTP fetch.
@@ -67,8 +99,10 @@ def _install_erddapy_default_headers() -> None:
     def _urlopen_with_headers(url: str, auth: tuple | None = None, **kwargs):
         # requests-style (connect, read) pair: hosts that silently drop
         # packets (common blocking behaviour for datacenter IPs) must fail
-        # fast on connect instead of burning the full read budget.
-        timeout = kwargs.pop("timeout", (8, 60))
+        # fast on connect instead of burning the full read budget. 3 s is
+        # generous for a reachable host; 25 s still covers a real griddap
+        # subset of our small bboxes (typically 2-5 s).
+        timeout = kwargs.pop("timeout", (3, 25))
         response = _requests.get(
             url,
             allow_redirects=True,
@@ -157,6 +191,39 @@ class ErddapProvider(OceanDataProvider):
         self.catalog = catalog
         src: DataSource = source_registry.get(source_id)
         self._source = src
+        u = urlsplit(self.server_url)
+        self._host_key = u.netloc
+        self._host_name = u.hostname or u.netloc
+        self._host_port = u.port or (443 if u.scheme == "https" else 80)
+
+    # ------------------------------------------------- host reachability
+    def _host_is_down(self) -> bool:
+        t = _host_down_at.get(self._host_key)
+        return t is not None and (time.monotonic() - t) < _HOST_DOWN_S
+
+    def _mark_host_down(self) -> None:
+        _host_down_at[self._host_key] = time.monotonic()
+
+    def _probe_host(self) -> bool:
+        """One cheap TCP connect as a reachability preflight, cached.
+
+        A griddap attempt is TWO requests (metadata + data); against a host
+        that blackholes a datacenter IP each would burn the full connect or
+        read budget. A single 2 s socket check answers "is this host even
+        reachable from here" once, and the verdict is shared by every
+        variable (and every provider instance) for the host.
+        """
+        ok_t = _host_probe_ok_at.get(self._host_key)
+        if ok_t is not None and (time.monotonic() - ok_t) < _HOST_PROBE_OK_S:
+            return True
+        try:
+            with socket.create_connection((self._host_name, self._host_port), timeout=_PROBE_TIMEOUT_S):
+                _host_probe_ok_at[self._host_key] = time.monotonic()
+                return True
+        except OSError:
+            self._mark_host_down()
+            logger.warning("ERDDAP host %s unreachable (TCP probe failed) — marked down %ss", self._host_key, int(_HOST_DOWN_S))
+            return False
 
     # ------------------------------------------------------------------ meta
     async def get_available_datasets(self) -> list[dict[str, object]]:
@@ -282,9 +349,17 @@ class ErddapProvider(OceanDataProvider):
             logger.info("no catalog entry for %r on %s", variable, self.source_id)
             return OceanField.empty(variable, "unknown", self._prov_none(variable), bbox)
         prov = self._provenance(entry, valid_time)
+        if self._host_is_down():
+            logger.info("ERDDAP host %s skipped (recent failure)", self._host_key)
+            return OceanField.empty(variable, entry.unit or "unknown", prov, bbox)
         try:
+            if not await asyncio.to_thread(self._probe_host):
+                return OceanField.empty(variable, entry.unit or "unknown", prov, bbox)
             ds = await asyncio.to_thread(self._subset_sync, entry, bbox, valid_time)
         except Exception as exc:  # noqa: BLE001
+            if _is_transport_failure(exc):
+                self._mark_host_down()
+                logger.warning("ERDDAP transport failure on %s — host marked down %ss", self._host_key, int(_HOST_DOWN_S))
             logger.warning("ERDDAP subset failed (%s/%s): %s", entry.dataset_id, variable, exc)
             return OceanField.empty(variable, entry.unit or "unknown", prov, bbox)
         if entry.variable not in ds:

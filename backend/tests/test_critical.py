@@ -204,3 +204,16 @@ def test_units_are_explicit(demo):
     for measurement in response.recommended.measurements:
         if measurement.value is not None:
             assert measurement.unit, f"{measurement.variable} has a value but no unit"
+
+
+# 9 ------------------------------------------------- supported-region gate
+def test_query_outside_supported_region_is_refused():
+    """A departure point outside the validated pilot bbox raises ValueError
+    (the API route turns it into HTTP 422) — no confident answers where the
+    boundary layers don't exist."""
+    workflow = FishingAdvisoryWorkflow()
+    parsed = run(DeterministicQueryParser().parse("safest fishing zone 20 km off Mumbai"))
+
+    assert parsed.origin is not None, "Mumbai itself parses fine"
+    with pytest.raises(ValueError, match="outside the region"):
+        workflow.require_origin_in_supported_region(parsed)

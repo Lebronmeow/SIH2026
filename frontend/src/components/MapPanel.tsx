@@ -21,6 +21,7 @@ import { PathStyleExtension } from "@deck.gl/extensions";
 import type { PickingInfo } from "@deck.gl/core";
 import * as i18n from "../i18n";
 import { resolveBasemapStyle, PRIMARY_BASEMAP, basemapWasProbedHealthy } from "../maps/basemap";
+import { PinIcon } from "./icons";
 import type { AdvisoryResponse, RouteOut } from "../types";
 
 const INITIAL_VIEW = {
@@ -37,12 +38,21 @@ const RING_COLOR = [45, 212, 191, 190]; // teal outline, dashed
 const ORIGIN_COLOR = [250, 204, 21, 255]; // yellow
 const LABEL_OUTLINE = [15, 23, 42, 255]; // slate-900
 
+export interface SupportedRegion {
+  name: string;
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
 export default function MapPanel(props: {
   response: AdvisoryResponse | null;
   onPickZone: (id: string | null) => void;
   selectedZoneId: string | null;
   routeOverride?: RouteOut | null;
   language: string;
+  supportedRegion?: SupportedRegion | null;
 }) {
   const { response, selectedZoneId } = props;
   const L = i18n.t(props.language);
@@ -181,11 +191,63 @@ export default function MapPanel(props: {
 
   const boundaries = useMemo(() => response?.map_layers ?? [], [response]);
 
+  // The validated pilot region, drawn straight from /api/system/status — the
+  // box the user's question must fall inside (outside → backend 422).
+  const regionLayers = useMemo(() => {
+    const r = props.supportedRegion;
+    if (!r) return null;
+    const box = {
+      type: "Feature" as const,
+      geometry: {
+        type: "Polygon" as const,
+        coordinates: [[
+          [r.west, r.south], [r.east, r.south], [r.east, r.north],
+          [r.west, r.north], [r.west, r.south],
+        ] as [number, number][]],
+      },
+      properties: { kind: "supported_region" },
+    };
+    const labelPos: [number, number] = [(r.west + r.east) / 2, r.north];
+    return { box, labelPos, name: r.name };
+  }, [props.supportedRegion]);
+
   const layers = useMemo(
     () => [
       // NOTE: `kind: "land"` features are deliberately NOT rendered — the
       // MapLibre basemap already shows real coastlines, and a polygon overlay
       // just hid the map. The land layer still guards the route in the engine.
+      ...(regionLayers
+        ? [
+            new GeoJsonLayer({
+              id: "region-box",
+              data: regionLayers.box as never,
+              filled: true,
+              getFillColor: [56, 189, 248, 7] as never,
+              stroked: true,
+              getLineColor: [56, 189, 248, 130] as never,
+              getLineWidth: 2,
+              lineWidthMinPixels: 1.5,
+              extensions: [new PathStyleExtension({ dash: true })] as never,
+              getDashArray: [6, 5] as never,
+              pickable: false,
+            }),
+            new TextLayer({
+              id: "region-label",
+              data: [{ position: regionLayers.labelPos, text: regionLayers.name }] as never,
+              getPosition: (d: { position: [number, number] }) => d.position,
+              getText: (d: { text: string }) => d.text,
+              getSize: 12,
+              getColor: [125, 211, 252, 235] as never,
+              fontWeight: 600,
+              characterSet: "auto",
+              fontSettings: { sdf: true, buffer: 6 },
+              outlineWidth: 3,
+              outlineColor: LABEL_OUTLINE as never,
+              getPixelOffset: [0, -10],
+              pickable: false,
+            }),
+          ]
+        : []),
       new GeoJsonLayer({
         id: "mpa",
         data: boundaries.filter((f) => f.properties?.kind === "mpa" || f.properties?.kind === "restricted") as never,
@@ -227,6 +289,23 @@ export default function MapPanel(props: {
         getColor: ROUTE_COLOR as never,
         getWidth: 4,
         widthMinPixels: 3,
+        pickable: false,
+      }),
+      // soft glow halo under the recommended zone — mirrors the radar feel of
+      // the reference dashboards; purely presentational, backend still decides
+      new ScatterplotLayer({
+        id: "zone-halo",
+        data: scatters.filter(
+          (s) => response != null && s.zone.candidate.id === response.recommended?.candidate.id,
+        ) as never,
+        getPosition: (d: { position: [number, number] }) => d.position,
+        getRadius: 2300,
+        radiusUnits: "meters" as never,
+        radiusMinPixels: 13,
+        getFillColor: [45, 212, 191, 26] as never,
+        stroked: true,
+        getLineColor: [45, 212, 191, 110] as never,
+        lineWidthMinPixels: 1.5,
         pickable: false,
       }),
       new ScatterplotLayer({
@@ -319,6 +398,23 @@ export default function MapPanel(props: {
           {L.basemapDegraded}
         </div>
       )}
+      {/* mission-control status strip: where the data is from + how many
+          zones the engine returned (render-only, values straight from the
+          backend response / system status) */}
+      {(props.supportedRegion || response) && (
+        <div className="map-topbar">
+          {props.supportedRegion && (
+            <span className="chip" title={`${props.supportedRegion.south}–${props.supportedRegion.north}°N, ${props.supportedRegion.west}–${props.supportedRegion.east}°E`}>
+              <PinIcon size={12} /> {props.supportedRegion.name}
+            </span>
+          )}
+          {response && !response.insufficient && (
+            <span className="chip mono">
+              {i18n.fmt(L.chip_zones, { n: response.zones.filter((z) => !z.excluded).length })}
+            </span>
+          )}
+        </div>
+      )}
       <div className="map-legend">
         <span><i className="dot recommended" /> {L.lg_best}</span>
         <span><i className="dot zone" /> {L.lg_others}</span>
@@ -327,6 +423,7 @@ export default function MapPanel(props: {
         <span><i className="poly ring" /> {L.lg_ring}</span>
         <span><i className="line imbl" /> {L.lg_imbl}</span>
         <span><i className="poly mpa" /> {L.lg_mpa}</span>
+        {props.supportedRegion && <span><i className="poly region" /> {L.lg_region}</span>}
       </div>
       {response?.insufficient && (
         <div className="map-overlay-error">{L.mapError}</div>

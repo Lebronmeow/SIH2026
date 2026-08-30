@@ -39,13 +39,24 @@ body,
 }
 
 /* Data values line up in columns (scores, ranks, coordinates) — Fira Sans
- * ships a tabular-numerals feature. */
+ * ships a tabular-numerals feature; data readouts use the mono stack for the
+ * instrument-panel look. */
 .tile-value,
 .zones-list .z-score,
 .zones-list .rank,
 .meter-head strong,
-.verdict-title {
+.verdict-title,
+.chip.mono,
+.sonar-phase,
+.map-topbar .chip {
   font-variant-numeric: tabular-nums;
+}
+
+.tile-value,
+.zones-list .z-score {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.2px;
 }
 
 /* Only color/border/shadow transition — never layout properties. */
@@ -192,6 +203,8 @@ details.trace summary {
   overflow-y: auto;
   font-size: 13.5px;
   line-height: 1.45;
+  /* faint top highlight — gives the panels the bevelled console feel */
+  box-shadow: inset 0 1px 0 rgba(232, 238, 247, 0.045);
 }
 
 .panel.right {
@@ -282,10 +295,15 @@ button.primary {
   color: #06251f;
   font-weight: 700;
   border: none;
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.35), 0 2px 14px rgba(45, 212, 191, 0.28);
 }
 
 button.primary:hover:not(:disabled) {
   filter: brightness(1.08);
+}
+
+button.primary:disabled {
+  box-shadow: none;
 }
 
 button.icon-btn.recording {
@@ -558,9 +576,21 @@ details.expert p {
   border: 1px solid var(--border);
 }
 
-.verdict.go { background: rgba(45, 212, 191, 0.12); border-color: rgba(45, 212, 191, 0.45); }
-.verdict.careful { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.5); }
-.verdict.stop { background: rgba(239, 68, 68, 0.14); border-color: rgba(239, 68, 68, 0.55); }
+.verdict.go {
+  background: rgba(45, 212, 191, 0.12);
+  border-color: rgba(45, 212, 191, 0.45);
+  box-shadow: 0 0 22px rgba(45, 212, 191, 0.12);
+}
+.verdict.careful {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 22px rgba(245, 158, 11, 0.1);
+}
+.verdict.stop {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.55);
+  box-shadow: 0 0 22px rgba(239, 68, 68, 0.12);
+}
 
 .verdict-icon {
   flex: none;
@@ -806,3 +836,100 @@ button.link svg {
 }
 
 .missing-chip svg { color: #fca5a5; flex: none; }
+
+/* --------------------------------------------------- sonar loading status */
+/* While the advisory pipeline runs: three expanding sonar rings + the phase
+ * readout ("fetching data → checking boundaries → ranking zones"). */
+.sonar-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 4px;
+  padding: 8px 12px;
+  border: 1px solid rgba(45, 212, 191, 0.35);
+  border-radius: 8px;
+  background: rgba(45, 212, 191, 0.07);
+}
+
+.sonar {
+  position: relative;
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.sonar i {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  animation: sonar-ping 1.8s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+}
+
+.sonar i:nth-child(2) { animation-delay: 0.6s; }
+.sonar i:nth-child(3) { animation-delay: 1.2s; }
+
+@keyframes sonar-ping {
+  0% { transform: scale(0.25); opacity: 0.9; }
+  70% { transform: scale(1); opacity: 0; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+.sonar-phase {
+  font-size: 12.5px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+/* ------------------------------------------- map status chips (top strip) */
+.map-topbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.map-topbar .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(13, 21, 36, 0.88);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 11.5px;
+  color: var(--text);
+  backdrop-filter: blur(4px);
+}
+
+.map-topbar .chip svg { color: var(--accent); flex: none; }
+.map-topbar .chip.mono { font-family: var(--font-mono); color: var(--accent-2); }
+
+/* legend swatch for the supported-region box */
+.map-legend .poly.region {
+  display: inline-block;
+  width: 12px;
+  height: 10px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1.5px dashed #38bdf8;
+  border-radius: 3px;
+  margin-right: 4px;
+}
+
+/* status dots on the ranked zone rows (green/amber/red by overall score) */
+.zones-list .z-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.zones-list .z-dot.good { background: #34d399; box-shadow: 0 0 6px rgba(52, 211, 153, 0.8); }
+.zones-list .z-dot.mid { background: var(--warn); box-shadow: 0 0 6px rgba(245, 158, 11, 0.7); }
+.zones-list .z-dot.low { background: var(--danger); box-shadow: 0 0 6px rgba(239, 68, 68, 0.7); }

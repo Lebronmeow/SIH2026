@@ -76,6 +76,177 @@
     "coordinates": [
      [
       [
+       80.05,
+       10.08333333
+      ],
+      [
+       80.08333333,
+       10.09666667
+      ],
+      [
+       80.15833333,
+       10.14
+      ],
+      [
+       80.76666667,
+       10.55
+      ],
+      [
+       81.04166667,
+       10.695
+      ],
+      [
+       81.93333333,
+       11.045
+      ],
+      [
+       82.40666667,
+       11.26666667
+      ],
+      [
+       83.36666667,
+       11.44333333
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "line_id": 1310,
+    "line_name": "Sri Lanka - India",
+    "line_type": "Treaty",
+    "mrgid_sov1": 2195,
+    "mrgid_ter1": 2195,
+    "territory1": "Sri Lanka",
+    "sovereign1": "Sri Lanka",
+    "mrgid_ter2": 2128,
+    "territory2": "India",
+    "mrgid_sov2": 2128,
+    "mrgid_eez1": 8346,
+    "eez1": "Sri Lankan Exclusive Economic Zone",
+    "mrgid_eez2": 8480,
+    "eez2": "Indian Exclusive Economic Zone",
+    "source1": "Agreement between Sri Lanka and India on the Maritime Boundary between the two Countries in the Gulf of Mannar and the Bay of Bengal and Related Matters 23 March 1976",
+    "url1": "https://www.marineregions.org/documents/LKA-IND1976MB.PDF",
+    "source2": null,
+    "url2": null,
+    "source3": null,
+    "url3": null,
+    "origin": "Database",
+    "doc_date": "1976-03-23Z",
+    "mrgid_jreg": null,
+    "joint_reg": null,
+    "length_km": 396.86,
+    "kind": "imbl",
+    "authority": "reference",
+    "hard_constraint": true,
+    "source_id": "marine-regions",
+    "name": "India–Sri Lanka boundary, 1976 agreement (Bay of Bengal, northeast of Palk Strait)",
+    "notes": "Treaty-based maritime boundary line (line_id=1310); geometry digitized by VLIZ Marine Regions (EEZ boundaries v4 WFS, retrieved 2026-08-30), CC-BY 4.0, DOI 10.14284/632. REFERENCE product — replace with official survey coordinates for legal use; ORCA still treats it as a hard constraint."
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "MultiLineString",
+    "coordinates": [
+     [
+      [
+       79.53333333,
+       9.1
+      ],
+      [
+       79.52166667,
+       9.0
+      ],
+      [
+       79.48833333,
+       8.89666667
+      ],
+      [
+       79.30333333,
+       8.66666667
+      ],
+      [
+       79.21666667,
+       8.62
+      ],
+      [
+       79.07833333,
+       8.52
+      ],
+      [
+       78.92333333,
+       8.37
+      ],
+      [
+       78.895,
+       8.20333333
+      ],
+      [
+       78.76166667,
+       7.58833333
+      ],
+      [
+       78.64666667,
+       7.35
+      ],
+      [
+       78.20333333,
+       6.51333333
+      ],
+      [
+       77.845,
+       5.89833333
+      ],
+      [
+       77.17666667,
+       5.0
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "line_id": 1307,
+    "line_name": "Sri Lanka - India",
+    "line_type": "Treaty",
+    "mrgid_sov1": 2195,
+    "mrgid_ter1": 2195,
+    "territory1": "Sri Lanka",
+    "sovereign1": "Sri Lanka",
+    "mrgid_ter2": 2128,
+    "territory2": "India",
+    "mrgid_sov2": 2128,
+    "sovereign2": "India",
+    "mrgid_eez1": 8346,
+    "eez1": "Sri Lankan Exclusive Economic Zone",
+    "mrgid_eez2": 8480,
+    "eez2": "Indian Exclusive Economic Zone",
+    "source1": "Agreement between Sri Lanka and India on the Maritime Boundary between the two Countries in the Gulf of Mannar and the Bay of Bengal and Related Matters 23 March 1976",
+    "url1": "https://www.marineregions.org/documents/LKA-IND1976MB.PDF",
+    "source2": null,
+    "url2": null,
+    "source3": null,
+    "url3": null,
+    "origin": "Database",
+    "doc_date": "1976-03-23Z",
+    "mrgid_jreg": null,
+    "joint_reg": null,
+    "length_km": 534.06,
+    "kind": "imbl",
+    "authority": "reference",
+    "hard_constraint": true,
+    "source_id": "marine-regions",
+    "name": "India–Sri Lanka boundary, 1976 agreement (Gulf of Mannar main section)",
+    "notes": "Treaty-based maritime boundary line (line_id=1307); geometry digitized by VLIZ Marine Regions (EEZ boundaries v4 WFS, retrieved 2026-08-30), CC-BY 4.0, DOI 10.14284/632. REFERENCE product — replace with official survey coordinates for legal use; ORCA still treats it as a hard constraint."
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "MultiLineString",
+    "coordinates": [
+     [
+      [
        77.17666667,
        5
       ],
@@ -117,7 +288,7 @@
     "authority": "reference",
     "hard_constraint": true,
     "source_id": "marine-regions",
-    "name": "India–Sri Lanka boundary, 1976 agreement (Gulf of Mannar)",
+    "name": "India–Sri Lanka boundary, 1976 agreement (Gulf of Mannar, to Maldives trijunction)",
     "notes": "Treaty-based maritime boundary line (line_id=1311); geometry digitized by VLIZ Marine Regions, CC-BY 4.0, DOI 10.14284/632. REFERENCE product — replace with official survey coordinates for legal use; ORCA still treats it as a hard constraint."
    }
   }

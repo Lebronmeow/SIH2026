@@ -4,7 +4,7 @@
  * traces back to a backend measurement — the panel renders, never computes.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import { api, stopSpeak } from "../api";
 import { browserSpeak, browserStop } from "../speech";
@@ -282,7 +282,24 @@ export default function RecommendationPanel(props: {
   // voice playback state — hooks stay above the early return so the component
   // can unmount cleanly while audio is playing
   const [speaking, setSpeaking] = useState(false);
-  useEffect(() => () => { stopSpeak(); browserStop(); }, []);
+  // Stop must also reach a read-aloud whose audio hasn't loaded yet (the TTS
+  // fetch is in flight) — the in-flight request is aborted, not just muted.
+  const speakAbortRef = useRef<AbortController | null>(null);
+  const stopAll = () => {
+    speakAbortRef.current?.abort();
+    speakAbortRef.current = null;
+    stopSpeak();
+    browserStop();
+  };
+  useEffect(() => () => stopAll(), []);
+  // A new advisory (or the panel switching to another query's response) must
+  // silence any still-playing explanation from the previous one.
+  const reqId = response?.request_id;
+  useEffect(() => {
+    stopAll();
+    setSpeaking(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reqId]);
 
   if (!response) {
     return (
@@ -316,8 +333,7 @@ export default function RecommendationPanel(props: {
     .slice(0, 5);
 
   function endPlayback() {
-    stopSpeak();
-    browserStop();
+    stopAll();
     setSpeaking(false);
   }
 
@@ -325,14 +341,18 @@ export default function RecommendationPanel(props: {
     const text = response?.explanation;
     if (!text) return;
     endPlayback();
+    const ac = new AbortController();
+    speakAbortRef.current = ac;
     setSpeaking(true);
     const done = () => setSpeaking(false);
     if (voice?.speak) {
       try {
-        await api.speak(text, language, done);
+        await api.speak(text, language, done, ac.signal);
       } catch (e) {
-        done();
-        alert(i18n.fmt(L.speakFail, { e: (e as Error).message }));
+        if (!ac.signal.aborted) {
+          done();
+          alert(i18n.fmt(L.speakFail, { e: (e as Error).message }));
+        }
       }
       return;
     }
@@ -387,6 +407,11 @@ export default function RecommendationPanel(props: {
                 {ranked.map((z) => {
                   const active = shown?.candidate.id === z.candidate.id;
                   const isBest = z.candidate.id === rec?.candidate.id;
+                  // status dot mirrors the fleet-list idiom: green = strong
+                  // overall score, amber = fair, red = weak (display only —
+                  // the score itself is the backend's)
+                  const s = z.score.overall_score;
+                  const dot = s == null ? "low" : s >= 0.6 ? "good" : s >= 0.4 ? "mid" : "low";
                   return (
                     <li key={z.candidate.id}>
                       <button
@@ -394,6 +419,7 @@ export default function RecommendationPanel(props: {
                         aria-pressed={active}
                         onClick={() => props.onPickZone(z.candidate.id)}
                       >
+                        <span className={`z-dot ${dot}`} aria-hidden />
                         <span className="rank">{isBest ? "★" : "#"}{z.rank}</span>
                         <span className="z-where">
                           {z.candidate.distance_from_origin_km} {L.km} {dirWords(z.candidate.bearing_deg, L)}

@@ -44,7 +44,9 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, language }),
-      signal,
+      // 150 s: covers a cold Render start (model load + first external fetches)
+      // without hanging the UI forever.
+      signal: signal ?? AbortSignal.timeout(150_000),
     }).then((r) => json<AdvisoryResponse>(r)),
 
   recommendation: (requestId: string) =>
@@ -63,13 +65,21 @@ export const api = {
         to_lon: toLon,
         mode: "safe",
       }),
+      // cold-started backends can take ~45 s; past 60 s treat as failed and
+      // surface the route_failed note instead of an endless spinner.
+      signal: AbortSignal.timeout(60_000),
     }).then(async (r) => {
       const out = await json<Omit<RouteOut, "notes"> & { notes?: string[] }>(r);
       return { ...out, notes: out.notes ?? [] } as RouteOut;
     }),
 
   transcribe: async (audioBlob: Blob, language: string): Promise<string> => {
-    const b64 = await blobToBase64(audioBlob);
+    // The mic records whatever container the browser gives it (Chrome: webm/
+    // opus, Firefox: ogg). The backend advertises wav/mp3/flac/ogg, so decode
+    // here and re-encode as true 16 kHz mono WAV — the "encoding" label then
+    // matches the bytes (and ASR engines get clean, unambiguous audio).
+    const wav = await blobToWav(audioBlob);
+    const b64 = await blobToBase64(wav);
     const r = await fetch(url("/api/voice/transcribe"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -79,14 +89,17 @@ export const api = {
     return body.text;
   },
 
-  speak: (text: string, language: string, onEnd?: () => void): Promise<void> =>
+  speak: (text: string, language: string, onEnd?: () => void, signal?: AbortSignal): Promise<void> =>
     fetch(url("/api/voice/speak"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, language }),
+      signal,
     })
       .then((r) => json<{ audio_base64: string; format?: string }>(r))
       .then(({ audio_base64, format }) => {
+        // stop pressed mid-fetch → never start playback
+        if (signal?.aborted) return;
         const bytes = Uint8Array.from(atob(audio_base64), (c) => c.charCodeAt(0));
         const blobUrl = URL.createObjectURL(new Blob([bytes], { type: format === "mp3" ? "audio/mpeg" : "audio/wav" }));
         const audio = new Audio(blobUrl);
@@ -116,8 +129,57 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+/** Decode any browser-recorded audio (webm/opus, ogg, …) and re-encode it as
+ * 16 kHz mono 16-bit PCM WAV — the format ASR backends expect, with an honest
+ * `encoding: "wav"` label. Resampling uses OfflineAudioContext; WAV assembly
+ * is the plain RIFF/PCM spec (44-byte header + little-endian samples). */
+async function blobToWav(blob: Blob): Promise<Blob> {
+  if (blob.type.includes("wav")) return blob;
+  const buf = await blob.arrayBuffer();
+  const decodeCtx = new AudioContext();
+  const decoded = await decodeCtx.decodeAudioData(buf);
+  void decodeCtx.close();
+  const targetRate = 16000;
+  const frames = Math.max(1, Math.ceil(decoded.duration * targetRate));
+  const offline = new OfflineAudioContext(1, frames, targetRate);
+  const src = offline.createBufferSource();
+  src.buffer = decoded;
+  src.connect(offline.destination);
+  src.start();
+  const rendered = await offline.startRendering();
+  const samples = rendered.getChannelData(0);
+  const pcm = new DataView(new ArrayBuffer(samples.length * 2));
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    pcm.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  const header = new ArrayBuffer(44);
+  const h = new DataView(header);
+  const ascii = (off: number, text: string) => {
+    for (let i = 0; i < text.length; i++) h.setUint8(off + i, text.charCodeAt(i));
+  };
+  ascii(0, "RIFF");
+  h.setUint32(4, 36 + pcm.byteLength, true);
+  ascii(8, "WAVE");
+  ascii(12, "fmt ");
+  h.setUint32(16, 16, true);
+  h.setUint16(20, 1, true); // PCM
+  h.setUint16(22, 1, true); // mono
+  h.setUint32(24, targetRate, true);
+  h.setUint32(28, targetRate * 2, true); // byte rate
+  h.setUint16(32, 2, true); // block align
+  h.setUint16(34, 16, true); // bits per sample
+  ascii(36, "data");
+  h.setUint32(40, pcm.byteLength, true);
+  return new Blob([header, pcm.buffer], { type: "audio/wav" });
+}
+
 export const EXAMPLE_QUERIES = [
   "Where is the safest and most productive fishing zone 20 km off Rameswaram tomorrow morning?",
   "Best fishing spot 15 km off Rameswaram today afternoon",
   "Is it safe to fish 25 km off Rameswaram tomorrow?",
+  "Which zones should I avoid off Rameswaram because of high waves or boundary rules?",
+  "Show me the safest route 30 km off Kilakarai for tomorrow morning",
+  "Where are the highest chlorophyll and good sea temperature off Rameswaram today?",
+  "Is it safe to venture into the sea tomorrow morning from Rameswaram?",
 ];

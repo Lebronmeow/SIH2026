@@ -113,9 +113,12 @@ class Settings(BaseSettings):
 
     # -------------------------------------------------------- local voice
     # Keyless speech fallback (app/services/local_voice.py). `local_asr_model`
-    # is any faster-whisper size: tiny/base/small (small = best Indian-language
-    # accuracy; downloaded once from Hugging Face on first use).
-    local_asr_model: str = "small"
+    # is any faster-whisper size: tiny/base/small (all multilingual; downloaded
+    # once from Hugging Face on first use). "base" is the default because the
+    # deployed free-tier container has 512 MB RAM — "small" loads but OOMs the
+    # worker mid-transcription (observed 2026-08-30 as an empty-body 502).
+    # Set ORCA_LOCAL_ASR_MODEL=small on a bigger plan for better accuracy.
+    local_asr_model: str = "base"
 
     # ------------------------------------------------------------- providers
     protected_planet_api_key: str | None = None

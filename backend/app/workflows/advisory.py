@@ -87,6 +87,7 @@ class FishingAdvisoryWorkflow:
         ctx.parsed = await self._parse(parser, ctx.raw_text, trace)
 
         origin = self._require_origin(ctx.parsed, trace)
+        self.require_origin_in_supported_region(ctx.parsed)
 
         # 2 — Ocean/Safety/Navigation specialists (deterministic engines)
         response = await self.evaluator.evaluate(origin, ctx.parsed, request_id=request_id)
@@ -143,6 +144,33 @@ class FishingAdvisoryWorkflow:
                 "Could not identify a departure place in the query. Name a port or landing centre, e.g. 'off Rameswaram'."
             )
         return LatLon(lat=parsed.origin.lat, lon=parsed.origin.lon)
+
+    def require_origin_in_supported_region(self, parsed: ParsedQuery) -> None:
+        """Hard gate: refuse queries whose departure point lies outside the
+        validated pilot region.
+
+        Boundary layers (IMBL/MPA demo packs), shorelines and the map's own
+        coverage are verified ONLY inside the configured supported-region
+        bbox — answering outside it would look confident while the geofence
+        layers simply don't exist there. The API route turns the raised
+        ValueError into HTTP 422 so the UI can show a clear, honest error.
+        """
+        origin = parsed.origin
+        if origin is None:
+            return
+        s = self.settings
+        inside = (
+            s.supported_region_south <= origin.lat <= s.supported_region_north
+            and s.supported_region_west <= origin.lon <= s.supported_region_east
+        )
+        if inside:
+            return
+        raise ValueError(
+            f"'{origin.place}' is outside the region ORCA has data for "
+            f"({s.supported_region_name}: {s.supported_region_south:g}–{s.supported_region_north:g}°N, "
+            f"{s.supported_region_west:g}–{s.supported_region_east:g}°E — the boxed area on the map). "
+            "Ask about a harbour inside it, e.g. Rameswaram, Kilakarai, Thondi or Mandapam."
+        )
 
     def _verify(self, response: RecommendationResponse) -> list[str]:
         """Verification Agent — deterministic re-checks (hardened in Phase 8).

@@ -123,6 +123,7 @@ export default function App() {
         routeOverride={selectedRoute}
         onPickZone={setSelectedZoneId}
         language={language}
+        supportedRegion={system?.supported_region ?? null}
       />
       <RecommendationPanel
         response={response}

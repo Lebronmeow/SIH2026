@@ -3,7 +3,7 @@
  * example queries and the honest status readouts (mode, sources, trace).
  */
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EXAMPLE_QUERIES, api } from "../api";
 import { canListen, listenOnce } from "../speech";
 import * as i18n from "../i18n";
@@ -40,6 +40,19 @@ export default function QueryPanel(props: {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const browserStt = canListen();
   const micEnabled = Boolean(voice?.transcribe) || browserStt;
+
+  // Mission-control loading readout: while the advisory pipeline runs, cycle
+  // through its three phases so the wait is legible (not a bare spinner).
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    if (!busy) {
+      setPhase(0);
+      return;
+    }
+    const id = window.setInterval(() => setPhase((p) => (p + 1) % 3), 2600);
+    return () => window.clearInterval(id);
+  }, [busy]);
+  const phaseText = [L.load_data, L.load_safety, L.load_rank][phase];
 
   const micTitle =
     voice?.engine === "bhashini"
@@ -134,6 +147,14 @@ export default function QueryPanel(props: {
           {busy ? L.working : L.ask}
         </button>
       </div>
+      {busy && (
+        <div className="sonar-status" role="status" aria-live="polite">
+          <span className="sonar" aria-hidden>
+            <i /><i /><i />
+          </span>
+          <span className="sonar-phase">{phaseText}</span>
+        </div>
+      )}
       {micNote && <div className="error-box">{micNote}</div>}
       {voice?.message && (
         <p className="note dim voice-note"><SpeakerIcon size={13} /> {voice.message}</p>

@@ -71,6 +71,8 @@ def build_advisory_workflow(hub=None, language: str = "en") -> Any:
             if parsed.origin is None:
                 await ctx.yield_output({"error": "no_resolvable_place"})
                 return
+            # same hard region gate as the direct pipeline (ValueError → 422)
+            advisory.require_origin_in_supported_region(parsed)
             trace_sink["steps"].append("master: plan = ring candidates + deterministic engines")
             await ctx.send_message(parsed, "specialist_zones")
 

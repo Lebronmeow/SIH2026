@@ -3,10 +3,9 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# geospatial wheels (shapely/pyproj) ship binary wheels; only netCDF needs lib deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libhdf5-0 libnetcdf19 libcurl4 \
-    && rm -rf /var/lib/apt/lists/*
+# No apt libraries needed: the science-stack manylinux wheels are
+# self-contained — netCDF4 vendors HDF5/netCDF/curl, shapely vendors GEOS,
+# pyproj vendors PROJ (see the *.libs dirs inside each wheel).
 
 # /srv IS the repo root: app/config/settings.py resolves REPO_ROOT as parents[3]
 # (config -> app -> backend -> root), so boundaries and demo data land where the

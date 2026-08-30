@@ -17,7 +17,8 @@ git push -u origin main
 2. Render reads [render.yaml](render.yaml): a Docker web service
    `orca-backend` on the free plan (spins down after 15 min idle — first
    request after idle takes ~1 min).
-3. Once built, note the service URL, e.g. `https://orca-backend.onrender.com`.
+3. Once built, note the service URL — Render picks a suffix, e.g.
+   `https://orca-backend-whvh.onrender.com`.
    Verify: open `https://<render-url>/api/system/status` → JSON with `"mode":"live"`.
 
 Free-tier note: the stack (numpy/xarray/netCDF4) is memory-hungry; if the
@@ -29,7 +30,7 @@ free is usually enough.
 1. Vercel → **Add New…** → **Project** → import `Lebronmeow/SIH2026`.
 2. **Root Directory: `frontend`** (framework auto-detects Vite).
 3. Env vars: none required — `frontend/vercel.json` proxies `/api/*` to
-   `https://orca-backend.onrender.com/api/*` (same-origin, no CORS needed).
+   `https://orca-backend-whvh.onrender.com/api/*` (same-origin, no CORS needed).
    **If your Render URL differs, edit that one line in
    [frontend/vercel.json](frontend/vercel.json).**
 4. Deploy → note the URL, e.g. `https://orca-sih2026.vercel.app`.

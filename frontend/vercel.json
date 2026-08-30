@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://orca-backend.onrender.com/api/$1"
+      "destination": "https://orca-backend-whvh.onrender.com/api/$1"
     }
   ]
 }

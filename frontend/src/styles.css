@@ -9,7 +9,13 @@
   --accent-2: #38bdf8;
   --warn: #f59e0b;
   --danger: #ef4444;
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* Fira Sans carries Latin text; Indic scripts (ta/te/ml/hi/bn/or) fall
+   * through to the platform's own Noto faces instead of shipping seven
+   * extra webfonts. */
+  --font-sans: "Fira Sans", "Noto Sans", "Nirmala UI", system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono: "Fira Code", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-family: var(--font-sans);
   color-scheme: dark;
 }
 
@@ -24,6 +30,42 @@ body,
   margin: 0;
   background: var(--bg);
   color: var(--text);
+}
+
+/* Keyboard focus is always visible; mouse clicks don't get the ring. */
+:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
+
+/* Data values line up in columns (scores, ranks, coordinates) — Fira Sans
+ * ships a tabular-numerals feature. */
+.tile-value,
+.zones-list .z-score,
+.zones-list .rank,
+.meter-head strong,
+.verdict-title {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Only color/border/shadow transition — never layout properties. */
+button,
+.tile,
+.zones-list button,
+details.expert summary,
+details.trace summary {
+  transition: background-color 150ms ease, border-color 150ms ease,
+    color 150ms ease, box-shadow 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 /* The three-region shell uses named areas at every width so no panel ever
@@ -59,6 +101,8 @@ body,
   letter-spacing: 0.4px;
   padding: 6px 12px;
 }
+
+.banner svg { flex: none; }
 
 .banner.hidden {
   display: none;
@@ -137,10 +181,6 @@ body,
 
   .verdict-title {
     font-size: 15px;
-  }
-
-  .verdict-icon {
-    font-size: 22px;
   }
 }
 
@@ -446,6 +486,7 @@ details.trace ul {
 }
 
 details.trace pre {
+  font-family: var(--font-mono);
   font-size: 10.5px;
   overflow-x: auto;
   white-space: pre-wrap;
@@ -500,9 +541,13 @@ details.expert p {
 .verdict.stop { background: rgba(239, 68, 68, 0.14); border-color: rgba(239, 68, 68, 0.55); }
 
 .verdict-icon {
-  font-size: 26px;
-  line-height: 1;
+  flex: none;
+  display: inline-flex;
 }
+
+.verdict.go .verdict-icon { color: var(--accent); }
+.verdict.careful .verdict-icon { color: var(--warn); }
+.verdict.stop .verdict-icon { color: #fca5a5; }
 
 .verdict-title {
   font-size: 17px;
@@ -543,7 +588,11 @@ ul.tiles {
   gap: 6px;
 }
 
-.tile-icon { font-size: 15px; }
+.tile-icon {
+  flex: none;
+  display: inline-flex;
+  color: var(--accent-2);
+}
 .tile-name { font-size: 11.5px; color: var(--text-dim); }
 
 .tile-value {
@@ -685,3 +734,53 @@ ul.meters {
 ul.kv.trip li {
   font-size: 13px;
 }
+
+/* inline icons inside trip rows / notes / link-buttons align with text */
+ul.kv.trip li svg,
+.blocked-note svg,
+.voice-note svg,
+button.link svg {
+  flex: none;
+  vertical-align: -2px;
+  margin-right: 5px;
+}
+
+/* ---------------------------------------------------- insufficient card */
+.missing-card {
+  background: var(--panel-2);
+  border: 1px dashed rgba(239, 68, 68, 0.45);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0 0 12px;
+}
+
+.missing-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #fca5a5;
+  margin-bottom: 8px;
+}
+
+.missing-chips {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.missing-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.missing-chip svg { color: #fca5a5; flex: none; }

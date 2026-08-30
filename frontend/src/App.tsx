@@ -8,6 +8,7 @@ import { api, stopSpeak } from "./api";
 import { browserStop } from "./speech";
 import * as i18n from "./i18n";
 import type { AdvisoryResponse, SystemStatus, VoiceStatus, ZoneEvaluation } from "./types";
+import { AlertTriangleIcon } from "./components/icons";
 import MapPanel from "./components/MapPanel";
 import QueryPanel from "./components/QueryPanel";
 import RecommendationPanel from "./components/RecommendationPanel";
@@ -56,7 +57,7 @@ export default function App() {
     <div className="app-shell">
       {bannerRequired && (
         <div className="banner" role="alert">
-          ⚠ {L.wt_DEMO_MODE}
+          <AlertTriangleIcon size={14} /> {L.wt_DEMO_MODE}
         </div>
       )}
       <QueryPanel

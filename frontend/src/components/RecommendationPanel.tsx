@@ -5,12 +5,19 @@
  */
 
 import { useEffect, useState } from "react";
+import type { ComponentType } from "react";
 import { api, stopSpeak } from "../api";
 import { browserSpeak, browserStop } from "../speech";
 import * as i18n from "../i18n";
+import {
+  AlertTriangleIcon, BanIcon, CheckCircleIcon, ClockIcon, CompassIcon,
+  CurrentIcon, LeafIcon, PinIcon, StopSoundIcon, SpeakerIcon, TempIcon,
+  WaveIcon, WindIcon,
+} from "./icons";
 import type { AdvisoryResponse, Measurement, RouteOut, VoiceStatus, Warning, ZoneEvaluation } from "../types";
 
 type L = Record<i18n.Key, string>;
+type IconCmp = ComponentType<{ size?: number }>;
 
 const SEVERITY_CLASS: Record<string, string> = {
   info: "sev-info",
@@ -89,24 +96,25 @@ function pct(v: number | null | undefined): string {
 /** Friendly label for a measurement variable (names as emitted by
  *  zone_evaluator). The value/unit still come from the backend untouched —
  *  we only change the wording around it. */
-const FRIENDLY: Record<string, { icon: string; key: i18n.Key; meaning: i18n.Key | ""; digits: number }> = {
-  sst_c: { icon: "🌡️", key: "t_sst", meaning: "t_sst_m", digits: 1 },
-  chlorophyll_mg_m3: { icon: "🌿", key: "t_chl", meaning: "t_chl_m", digits: 2 },
-  wave_height_m: { icon: "🌊", key: "t_wave", meaning: "", digits: 2 },
-  wind_speed_kmh: { icon: "💨", key: "t_wind", meaning: "", digits: 1 },
-  current_speed_ms: { icon: "🌀", key: "t_cur", meaning: "t_cur_m", digits: 2 },
+const FRIENDLY: Record<string, { icon: IconCmp; key: i18n.Key; meaning: i18n.Key | ""; digits: number }> = {
+  sst_c: { icon: TempIcon, key: "t_sst", meaning: "t_sst_m", digits: 1 },
+  chlorophyll_mg_m3: { icon: LeafIcon, key: "t_chl", meaning: "t_chl_m", digits: 2 },
+  wave_height_m: { icon: WaveIcon, key: "t_wave", meaning: "", digits: 2 },
+  wind_speed_kmh: { icon: WindIcon, key: "t_wind", meaning: "", digits: 1 },
+  current_speed_ms: { icon: CurrentIcon, key: "t_cur", meaning: "t_cur_m", digits: 2 },
 };
 
 function ConditionTile({ m, L }: { m: Measurement; L: L }) {
   const f = FRIENDLY[m.variable];
   const p = m.provenance;
+  const Icon = f?.icon ?? PinIcon;
   const value = m.value == null ? "—" : fmt(m.value, f?.digits ?? 2);
   const word =
     m.variable === "wave_height_m" ? waveWord(m.value, L) : m.variable === "wind_speed_kmh" ? windWord(m.value, L) : "";
   return (
     <li className="tile">
       <div className="tile-head">
-        <span className="tile-icon" aria-hidden>{f?.icon ?? "📍"}</span>
+        <span className="tile-icon" aria-hidden><Icon size={15} /></span>
         <span className="tile-name">{f ? L[f.key] : m.variable}</span>
         {m.quality === "missing" && <span className="badge missing">{L.badge_missing}</span>}
         {m.quality === "stale" && <span className="badge stale">{L.badge_cached}</span>}
@@ -172,18 +180,31 @@ function ZoneDetail({ zone, L }: { zone: ZoneEvaluation; L: L }) {
   );
 }
 
-type Verdict = { cls: string; icon: string; title: string; sub: string };
+type Verdict = { cls: string; icon: IconCmp; title: string; sub: string };
 
 /** Verdict derived ONLY from the backend's warning severities — no new logic. */
 function verdictOf(warnings: Warning[], L: L): Verdict {
   if (warnings.some((w) => w.severity === "critical")) {
-    return { cls: "stop", icon: "⛔", title: L.v_stop_t, sub: L.v_stop_s };
+    return { cls: "stop", icon: BanIcon, title: L.v_stop_t, sub: L.v_stop_s };
   }
   if (warnings.some((w) => w.severity === "warning" || w.severity === "caution")) {
-    return { cls: "careful", icon: "⚠️", title: L.v_care_t, sub: L.v_care_s };
+    return { cls: "careful", icon: AlertTriangleIcon, title: L.v_care_t, sub: L.v_care_s };
   }
-  return { cls: "go", icon: "✅", title: L.v_go_t, sub: L.v_go_s };
+  return { cls: "go", icon: CheckCircleIcon, title: L.v_go_t, sub: L.v_go_s };
 }
+
+/** Missing-data chips: map the backend's *field* variable names (sst,
+ *  current_u, …) to the same friendly labels + icons the measurement tiles
+ *  use. Unknown names keep their raw code — never a made-up translation. */
+const MISSING_VAR: Record<string, { icon: IconCmp; key: i18n.Key }> = {
+  sst: { icon: TempIcon, key: "t_sst" },
+  chlorophyll: { icon: LeafIcon, key: "t_chl" },
+  wave_height: { icon: WaveIcon, key: "t_wave" },
+  wind_u: { icon: WindIcon, key: "t_wind" },
+  wind_v: { icon: WindIcon, key: "t_wind" },
+  current_u: { icon: CurrentIcon, key: "t_cur" },
+  current_v: { icon: CurrentIcon, key: "t_cur" },
+};
 
 /** Localize value-bearing warning messages; unknown codes keep the backend's
  *  honest English text rather than a made-up translation. */
@@ -219,13 +240,13 @@ function TripCard({ route, L }: { route: RouteOut; L: L }) {
     <section className="card">
       <h3>{L.trip}</h3>
       <ul className="kv trip">
-        <li>🧭 {L.tr_distance}: <strong>{fmt(route.distance_km, 1)} {L.km}</strong></li>
-        <li>⏱️ {L.tr_time}: <strong>{hoursToWords(route.estimated_time_h, L)}</strong></li>
+        <li><CompassIcon size={14} /> {L.tr_distance}: <strong>{fmt(route.distance_km, 1)} {L.km}</strong></li>
+        <li><ClockIcon size={14} /> {L.tr_time}: <strong>{hoursToWords(route.estimated_time_h, L)}</strong></li>
         {route.hazard_stats.max_wave_m != null && (
-          <li>🌊 {L.tr_wave}: <strong>{fmt(route.hazard_stats.max_wave_m)} m</strong> — {waveWord(route.hazard_stats.max_wave_m, L)}</li>
+          <li><WaveIcon size={14} /> {L.tr_wave}: <strong>{fmt(route.hazard_stats.max_wave_m)} m</strong> — {waveWord(route.hazard_stats.max_wave_m, L)}</li>
         )}
       </ul>
-      {route.blocked_by_constraints && <p className="blocked-note">⛔ {L.tr_blocked}</p>}
+      {route.blocked_by_constraints && <p className="blocked-note"><BanIcon size={14} /> {L.tr_blocked}</p>}
       {route.notes.length > 0 && <p className="note dim">{route.notes.map((n) => noteText(n, L)).join(" · ")}</p>}
       <details className="expert">
         <summary>{L.tr_explain}</summary>
@@ -262,6 +283,19 @@ export default function RecommendationPanel(props: {
   const shown = selectedZone ?? rec;
   const route = response.route;
   const verdict = verdictOf(response.warnings, L);
+  const VIcon = verdict.icon;
+  const missing: { label: string; icon: IconCmp }[] = [];
+  if (response.insufficient?.missing_variables) {
+    const seen = new Set<string>();
+    for (const v of response.insufficient.missing_variables) {
+      const f = MISSING_VAR[v];
+      const label = f ? L[f.key] : v;
+      if (!seen.has(label)) {
+        seen.add(label);
+        missing.push({ label, icon: f?.icon ?? PinIcon });
+      }
+    }
+  }
   const ranked = response.zones
     .filter((z) => !z.excluded && z.rank != null)
     .slice(0, 5);
@@ -298,21 +332,33 @@ export default function RecommendationPanel(props: {
       {response.insufficient ? (
         <>
           <div className="verdict stop" role="status">
-            <span className="verdict-icon" aria-hidden>🚫</span>
+            <span className="verdict-icon" aria-hidden><BanIcon size={22} /></span>
             <div>
               <div className="verdict-title">{L.v_none_t}</div>
               <div className="verdict-sub">{response.insufficient.detail}</div>
             </div>
           </div>
-          {response.insufficient.missing_variables && (
-            <p className="dim">{L.missingData}: {response.insufficient.missing_variables.join(", ")}</p>
+          {missing.length > 0 && (
+            <div className="missing-card">
+              <div className="missing-label">{L.missingData}</div>
+              <ul className="missing-chips">
+                {missing.map((mv) => {
+                  const MIcon = mv.icon;
+                  return (
+                    <li key={mv.label} className="missing-chip">
+                      <MIcon size={13} /> {mv.label}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
           <p className="note dim">{L.whatToDo}</p>
         </>
       ) : (
         <>
           <div className={`verdict ${verdict.cls}`} role="status">
-            <span className="verdict-icon" aria-hidden>{verdict.icon}</span>
+            <span className="verdict-icon" aria-hidden><VIcon size={22} /></span>
             <div>
               <div className="verdict-title">{verdict.title}</div>
               <div className="verdict-sub">{verdict.sub}</div>
@@ -356,9 +402,9 @@ export default function RecommendationPanel(props: {
             </p>
           )}
           {speaking ? (
-            <button className="link small stop-sound" onClick={endPlayback}>{L.stopSound}</button>
+            <button className="link small stop-sound" onClick={endPlayback}><StopSoundIcon size={14} /> {L.stopSound}</button>
           ) : (
-            <button className="link small" onClick={() => void listen()}>{L.listen}</button>
+            <button className="link small" onClick={() => void listen()}><SpeakerIcon size={14} /> {L.listen}</button>
           )}
           {selectedZone && rec && selectedZone.candidate.id !== rec.candidate.id && (
             <p className="note dim">{L.pickedNote}</p>

@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { EXAMPLE_QUERIES, api } from "../api";
 import { canListen, listenOnce } from "../speech";
 import * as i18n from "../i18n";
+import { MicIcon, PinIcon, SpeakerIcon, StopIcon } from "./icons";
 import type { SystemStatus, VoiceStatus, WorkflowTrace } from "../types";
 
 const LANGUAGES = [
@@ -100,10 +101,7 @@ export default function QueryPanel(props: {
 
       {system?.supported_region && (
         <p className="region-chip" title={`${system.supported_region.south}–${system.supported_region.north}°N, ${system.supported_region.west}–${system.supported_region.east}°E`}>
-          <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11z" />
-            <circle cx="12" cy="10" r="2.5" />
-          </svg>
+          <PinIcon size={12} />
           {L.pilotRegion}: {system.supported_region.name}
         </p>
       )}
@@ -125,10 +123,11 @@ export default function QueryPanel(props: {
         <button
           className={`icon-btn ${recording || listening ? "recording" : ""}`}
           title={micTitle}
+          aria-label={micTitle}
           disabled={!micEnabled}
           onClick={() => void toggleMic()}
         >
-          {recording || listening ? "■" : "🎙"}
+          {recording || listening ? <StopIcon size={15} /> : <MicIcon size={15} />}
         </button>
         <button className="primary" disabled={busy || text.trim().length < 3} onClick={() => props.onAsk(text.trim(), language)}>
           {busy ? L.working : L.ask}
@@ -136,7 +135,7 @@ export default function QueryPanel(props: {
       </div>
       {micNote && <div className="error-box">{micNote}</div>}
       {voice?.message && (
-        <p className="note dim">🔊 {voice.message}</p>
+        <p className="note dim voice-note"><SpeakerIcon size={13} /> {voice.message}</p>
       )}
 
       <label className="field-label">{L.examples}</label>

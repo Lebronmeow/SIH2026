@@ -76,8 +76,15 @@ Verdict legend:
 ### Open-Meteo — **A**
 - **License/attribution**: free, no key, non-commercial use, **CC-BY 4.0 — attribution
   required** (carried in ORCA's sources list and UI footer).
-- Marine API (waves), weather API (wind), **geocoding API** (place → lat/lon, used by
-  the PlaceResolver with a coarse built-in port gazetteer as offline fallback).
+- Marine API (waves, SST, ocean currents), weather API (wind), **geocoding API**
+  (place → lat/lon, used by the PlaceResolver with a coarse built-in port gazetteer
+  as offline fallback).
+- **Resilience role**: when a primary ERDDAP host is unreachable (outage, or
+  datacenter-IP blocking), the hub falls back to Open-Meteo point forecasts sampled
+  on a deterministic lattice over the query bbox — wind and current vectors are
+  decomposed from the provider's speed+direction by documented formulas recorded in
+  provenance (never invented numbers). Provider resolution ~8 km for currents, so
+  provenance marks those grids indicative near coasts.
 
 ## 3. Geospatial
 
@@ -86,6 +93,24 @@ Verdict legend:
   point-in-polygon + edge/segment tests; pyproj `Geod` (WGS84) for all geodesic
   distance/bearing math and per-UTM-zone `Transformer` projections (EPSG:32644 for
   ~79°E) with projection caching.
+
+### GSHHG shoreline — **A** (data source, replaces Natural Earth 10m for land)
+- **License**: LGPL-3.0 · **Citation**: Wessel, P., and W. H. F. Smith (1996),
+  *A global, self-consistent, hierarchical, high-resolution geography database*,
+  J. Geophys. Res. — the shoreline product behind chart plotters.
+- Full-resolution (L1) land polygons clipped to the pilot bbox are committed at
+  `data/demo/rams/boundaries/land_gshhg_full.geojson` (~100 m coastal accuracy vs
+  Natural Earth 10m's ~2–3 km error). Zone placement, coastal exclusion and route
+  safety all test against this layer. Attribution + retrieval date in
+  `data/demo/rams/boundaries/ATTRIBUTION.md`.
+
+### OpenStreetMap (Overpass API) — **A** (data source, protected-area geometry)
+- **License**: ODbL 1.0. Real marine-protected-area boundaries can be pulled from
+  OSM relations (`protect_class=2`): the Gulf of Mannar Marine National Park
+  (relation 415570, polygonized from its member ways, ~480 km² vs the official
+  ~560 km²) ships at `data/demo/rams/boundaries/mpa_gulf_of_mannar.geojson`,
+  replacing the synthetic demo polygon. Labeled REFERENCE in ATTRIBUTION.md —
+  OSM boundaries are not legally definitive.
 
 ### Marine Regions (VLIZ) — **A** (data source)
 - **License**: CC-BY 4.0 · DOI 10.14284/632 · WFS `MarineRegions:eez_boundaries`.
@@ -100,8 +125,8 @@ Verdict legend:
   geometry is NOT permitted**.
 - **How ORCA uses it**: `ProtectedAreaProvider` fetches at *runtime* with the
   operator's own key (`ORCA_PROTECTED_PLANET_API_KEY`); geometry is never committed
-  to the repo and never shipped in the demo pack. Demo MPA polygons are synthetic
-  and clearly labeled.
+  to the repo and never shipped in the demo pack. The demo pack's MPA layer is the
+  OSM polygon above (see OpenStreetMap entry).
 
 ### PostGIS — **D** (for this prototype; optional in deployment)
 - **License**: GPL-2.0. Docker-compose includes it for the "ops" configuration, but

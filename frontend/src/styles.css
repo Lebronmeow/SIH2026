@@ -396,6 +396,28 @@ ul.examples li {
   font-size: 13px;
 }
 
+/* basemap loading / degraded-fallback notices */
+.map-basemap-note {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  background: rgba(15, 23, 42, 0.85);
+  color: var(--text, #e2e8f0);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  pointer-events: none;
+}
+.map-basemap-note.degraded {
+  background: rgba(180, 83, 9, 0.92);
+  color: #fff;
+  border-color: transparent;
+}
+
 /* ------------------------------------------------- recommendation panel */
 .panel h3 {
   margin: 18px 0 8px;

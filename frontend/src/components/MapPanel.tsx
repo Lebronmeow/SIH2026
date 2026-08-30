@@ -6,7 +6,7 @@
  *   - safe route (PathLayer)
  */
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, { useControl, type MapRef } from "@vis.gl/react-maplibre";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -20,6 +20,7 @@ import { ScatterplotLayer, PathLayer, GeoJsonLayer, TextLayer } from "@deck.gl/l
 import { PathStyleExtension } from "@deck.gl/extensions";
 import type { PickingInfo } from "@deck.gl/core";
 import * as i18n from "../i18n";
+import { resolveBasemapStyle, PRIMARY_BASEMAP } from "../maps/basemap";
 import type { AdvisoryResponse } from "../types";
 
 const INITIAL_VIEW = {
@@ -46,6 +47,23 @@ export default function MapPanel(props: {
   const L = i18n.t(props.language);
   const mapRef = useRef<MapRef>(null);
   const containerRef = useRef<HTMLElement>(null);
+
+  // Basemap: resolved once per session by probing providers (see basemap.ts).
+  // The Map mounts only once a style is chosen — a provider outage then
+  // degrades to a *notice* instead of a silently white map.
+  const [mapStyle, setMapStyle] = useState<string | null>(null);
+  const [basemapDegraded, setBasemapDegraded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    resolveBasemapStyle().then((url) => {
+      if (cancelled) return;
+      setMapStyle(url);
+      setBasemapDegraded(url !== PRIMARY_BASEMAP);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Frame the whole search area (ring + zones + route) whenever a new
   // response arrives, so users always see the full picture.
@@ -278,17 +296,28 @@ export default function MapPanel(props: {
 
   return (
     <main className="map-container" ref={containerRef}>
-      <Map
-        ref={mapRef}
-        initialViewState={INITIAL_VIEW}
-        mapStyle="https://tiles.openfreemap.org/styles/liberty"
-        onError={(e) => {
-          // surface async map/style failures — previously they were silent
-          console.error("map error:", (e as { error?: Error }).error ?? e);
-        }}
-      >
-        <DeckGLBridge layers={layers} />
-      </Map>
+      {mapStyle ? (
+        <Map
+          ref={mapRef}
+          initialViewState={INITIAL_VIEW}
+          mapStyle={mapStyle}
+          onError={(e) => {
+            // surface async map/style failures — previously they were silent
+            console.error("map error:", (e as { error?: Error }).error ?? e);
+          }}
+        >
+          <DeckGLBridge layers={layers} />
+        </Map>
+      ) : (
+        <div className="map-basemap-note" role="status">
+          {L.mapLoading}
+        </div>
+      )}
+      {basemapDegraded && mapStyle && (
+        <div className="map-basemap-note degraded" role="status">
+          {L.basemapDegraded}
+        </div>
+      )}
       <div className="map-legend">
         <span><i className="dot recommended" /> {L.lg_best}</span>
         <span><i className="dot zone" /> {L.lg_others}</span>

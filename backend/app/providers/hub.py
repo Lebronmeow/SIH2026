@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -31,6 +32,12 @@ from app.schemas.common import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Circuit breaker: after a provider failure, skip that (provider, variable)
+# pair for this long before retrying. Keeps a dead host (that blackholes
+# connections until timeout) from re-taxing every request; the primary
+# source is retried after the TTL, so an outage is never permanent.
+_FAILURE_TTL_S = 600.0
 
 
 class OceanDataHub:
@@ -56,6 +63,7 @@ class OceanDataHub:
         else:
             self._demo = DemoOceanProvider(settings.demo_dir)
             logger.info("hub: DEMO mode (cached data pack)")
+        self._failures: dict[tuple[str, str], float] = {}
 
     @staticmethod
     def _load_servers(path) -> list[tuple[str, dict]]:
@@ -69,6 +77,14 @@ class OceanDataHub:
             return []
 
     # ------------------------------------------------------------- internals
+    def _skip(self, source_id: str, variable: str) -> bool:
+        """True while a recent failure marks this (provider, variable) down."""
+        t = self._failures.get((source_id, variable))
+        return t is not None and (time.monotonic() - t) < _FAILURE_TTL_S
+
+    def _mark_failed(self, source_id: str, variable: str) -> None:
+        self._failures[(source_id, variable)] = time.monotonic()
+
     async def _first_ok(self, coros: list, description: str):
         """Run provider calls in priority order; return first non-exception."""
         last_exc: Exception | None = None
@@ -126,12 +142,20 @@ class OceanDataHub:
         if self.mode is DataMode.DEMO and self._demo:
             return await self._demo.get_field(variable, bbox, valid_time)
         for provider in self._erddap:
+            if self._skip(provider.source_id, variable):
+                logger.info("field %s from %s skipped (recent failure)", variable, provider.source_id)
+                continue
             try:
                 field = await provider.get_field(variable, bbox, valid_time)
                 if not field.is_empty:
                     return field
+                # empty is the provider's degraded return for a failed
+                # subset — treat like a transport failure for the breaker
+                self._mark_failed(provider.source_id, variable)
+                logger.warning("field %s from %s empty (marked down %ss)", variable, provider.source_id, int(_FAILURE_TTL_S))
             except Exception as exc:  # noqa: BLE001
-                logger.warning("field %s from %s failed: %s", variable, provider.source_id, exc)
+                self._mark_failed(provider.source_id, variable)
+                logger.warning("field %s from %s failed: %s (marked down %ss)", variable, provider.source_id, exc, int(_FAILURE_TTL_S))
         # LIVE fallback: an outage on one server (e.g. PacIOOS hosting wind and
         # wave fields) must not blind the whole advisory. Open-Meteo serves
         # wind speed+direction and wave height as point forecasts; the provider

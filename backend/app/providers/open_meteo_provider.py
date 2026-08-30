@@ -24,16 +24,26 @@ from app.schemas.common import BoundingBox, Measurement, Provenance, QualityFlag
 
 logger = logging.getLogger(__name__)
 
-_HOURLY_MARINE = ["wave_height", "wave_period", "wave_direction", "sea_surface_temperature"]
+_HOURLY_MARINE = [
+    "wave_height", "wave_period", "wave_direction", "sea_surface_temperature",
+    "ocean_current_velocity", "ocean_current_direction",
+]
 _HOURLY_WEATHER = ["wind_speed_10m", "wind_direction_10m", "wind_gusts_10m", "precipitation"]
 
 # LIVE-mode gridded fallback: variables this provider can stand in for when
-# the primary ERDDAP source is unreachable (e.g. PacIOOS outage).
-_FIELD_FALLBACK_VARS = ("wind_u", "wind_v", "wave_height")
-_DERIVATION_NOTE = (
+# the primary ERDDAP source is unreachable (e.g. PacIOOS outage, or ERDDAP
+# hosts that block datacenter IPs — the Render free tier hits both).
+_FIELD_FALLBACK_VARS = ("wind_u", "wind_v", "wave_height", "sst", "current_u", "current_v")
+_WIND_DERIVATION_NOTE = (
     "wind components derived from the provider's wind_speed + wind_direction "
     "via the standard meteorological decomposition u = -V·sin(θ), v = -V·cos(θ) "
     "(θ = direction the wind blows FROM) — same observation, vector form"
+)
+_CURRENT_DERIVATION_NOTE = (
+    "current components derived from the provider's ocean_current_velocity + "
+    "ocean_current_direction via u = V·sin(θ), v = V·cos(θ) (θ = direction the "
+    "current flows TOWARD, 0°=N, 90°=E — oceanographic convention, km/h "
+    "converted to m s-1); provider resolution ~8 km, indicative near coasts"
 )
 _FIELD_LATTICE_STEP_DEG = 0.25
 _FIELD_LATTICE_MAX_N = 12  # per axis; 12x12 = 144 points, within API limits
@@ -155,39 +165,34 @@ class OpenMeteoProvider(OceanDataProvider):
 
         Serves as the LIVE fallback when the ERDDAP source for a gridded
         variable is down. One multi-coordinate HTTP request per call; values
-        are the provider's own (wind speed+direction decomposed to u/v by the
-        documented meteorological formula — no invented numbers).
+        are the provider's own — vector components are decomposed from the
+        provider's speed+direction by documented formulas (no invented
+        numbers), with the derivation recorded in provenance.
         """
+        use_weather = variable in ("wind_u", "wind_v")
         lats, lons = self._lattice(bbox)
-        prov = self._prov("forecast" if variable != "wave_height" else "marine", valid_time)
-        unit = "m" if variable == "wave_height" else "m s-1"
+        prov = self._prov("forecast" if use_weather else "marine", valid_time)
+        unit = {"wave_height": "m", "sst": "°C"}.get(variable, "m s-1")
         # Open-Meteo pairs multi-coordinate lists element-wise, so the lat/lon
         # cartesian product is expanded into explicit point pairs up front.
         pairs = [(la, lo) for la in lats for lo in lons]
-        lat_q = ",".join(str(la) for la, _ in pairs)
-        lon_q = ",".join(str(lo) for _, lo in pairs)
+        params: dict[str, str] = {
+            "latitude": ",".join(str(la) for la, _ in pairs),
+            "longitude": ",".join(str(lo) for _, lo in pairs),
+            "hourly": (
+                "wind_speed_10m,wind_direction_10m" if use_weather
+                else "wave_height" if variable == "wave_height"
+                else "sea_surface_temperature" if variable == "sst"
+                else "ocean_current_velocity,ocean_current_direction"
+            ),
+            "timezone": "UTC",
+        }
+        if use_weather:
+            params["wind_speed_unit"] = "ms"
         try:
-            if variable == "wave_height":
-                params = {
-                    "latitude": lat_q,
-                    "longitude": lon_q,
-                    "hourly": "wave_height",
-                    "timezone": "UTC",
-                }
-                async with httpx.AsyncClient(timeout=30) as client:
-                    r = await client.get(self._marine_base, params=params)
-                    r.raise_for_status()
-            else:
-                params = {
-                    "latitude": lat_q,
-                    "longitude": lon_q,
-                    "hourly": "wind_speed_10m,wind_direction_10m",
-                    "wind_speed_unit": "ms",
-                    "timezone": "UTC",
-                }
-                async with httpx.AsyncClient(timeout=30) as client:
-                    r = await client.get(self._base, params=params)
-                    r.raise_for_status()
+            async with httpx.AsyncClient(timeout=30) as client:
+                r = await client.get(self._base if use_weather else self._marine_base, params=params)
+                r.raise_for_status()
         except Exception as exc:  # noqa: BLE001 — degrade like any other source
             logger.warning("open-meteo lattice field %s failed: %s", variable, exc)
             return OceanField.empty(variable, unit, prov, bbox)
@@ -196,35 +201,49 @@ class OpenMeteoProvider(OceanDataProvider):
         grid = np.full((len(lats), len(lons)), np.nan)
         lat_ix = {v: i for i, v in enumerate(lats)}
         lon_ix = {v: i for i, v in enumerate(lons)}
+        # Vector families: wind blows FROM θ (u = -V·sinθ), currents flow
+        # TOWARD θ (u = +V·sinθ). Open-Meteo currents are km/h → m s-1.
+        is_vector = variable in ("wind_u", "wind_v", "current_u", "current_v")
+        speed_var = "wind_speed_10m" if use_weather else "ocean_current_velocity"
+        dir_var = "wind_direction_10m" if use_weather else "ocean_current_direction"
+        sign, scale = (-1.0, 1.0) if use_weather else (1.0, 1.0 / 3.6)
+
+        def extract(hourly: dict[str, list], idx: int) -> float | None:
+            if not is_vector:
+                src = "wave_height" if variable == "wave_height" else "sea_surface_temperature"
+                return _pick(hourly, src, idx)
+            speed = _pick(hourly, speed_var, idx)
+            direction = _pick(hourly, dir_var, idx)
+            if speed is None or direction is None:
+                return None
+            rad = math.radians(direction)
+            u = sign * speed * scale * math.sin(rad)
+            v = sign * speed * scale * math.cos(rad)
+            return u if variable.endswith("_u") else v
+
         n_filled = 0
         for item in items:
             try:
                 if item.get("hourly") is None:
                     continue
                 idx = self._hour_index(item["hourly"]["time"], valid_time)
-                if variable == "wave_height":
-                    value = _pick(item["hourly"], "wave_height", idx)
-                    i = lat_ix.get(min(lats, key=lambda v: abs(v - float(item["latitude"]))))
-                    j = lon_ix.get(min(lons, key=lambda v: abs(v - float(item["longitude"]))))
-                    if value is not None and i is not None and j is not None:
-                        grid[i, j] = value
-                        n_filled += 1
-                else:
-                    speed = _pick(item["hourly"], "wind_speed_10m", idx)
-                    direction = _pick(item["hourly"], "wind_direction_10m", idx)
-                    i = lat_ix.get(min(lats, key=lambda v: abs(v - float(item["latitude"]))))
-                    j = lon_ix.get(min(lons, key=lambda v: abs(v - float(item["longitude"]))))
-                    if speed is not None and direction is not None and i is not None and j is not None:
-                        rad = math.radians(direction)
-                        u, v = -speed * math.sin(rad), -speed * math.cos(rad)
-                        grid[i, j] = u if variable == "wind_u" else v
-                        n_filled += 1
+                value = extract(item["hourly"], idx)
+                i = lat_ix.get(min(lats, key=lambda v: abs(v - float(item["latitude"]))))
+                j = lon_ix.get(min(lons, key=lambda v: abs(v - float(item["longitude"]))))
+                if value is not None and i is not None and j is not None:
+                    grid[i, j] = value
+                    n_filled += 1
             except (KeyError, ValueError, TypeError) as exc:
                 logger.warning("open-meteo lattice point skipped: %s", exc)
         if n_filled == 0:
             return OceanField.empty(variable, unit, prov, bbox)
         da = xr.DataArray(grid, coords={"latitude": lats, "longitude": lons}, dims=("latitude", "longitude"))
-        prov.notes = _DERIVATION_NOTE if variable in ("wind_u", "wind_v") else "fallback grid from point forecasts"
+        if variable in ("wind_u", "wind_v"):
+            prov.notes = _WIND_DERIVATION_NOTE
+        elif variable in ("current_u", "current_v"):
+            prov.notes = _CURRENT_DERIVATION_NOTE
+        else:
+            prov.notes = "fallback grid from point forecasts"
         return OceanField(variable, unit, da, prov, bbox)
 
     async def get_field(self, variable: str, bbox: BoundingBox, valid_time: datetime) -> OceanField:
@@ -268,18 +287,36 @@ class OpenMeteoProvider(OceanDataProvider):
         )
 
     async def get_currents(self, lat: float, lon: float, valid_time: datetime) -> list[Measurement]:
-        return [
-            Measurement(
-                variable="current_u", value=None, unit="m s-1",
-                provenance=self._prov("marine", valid_time),
-                quality=QualityFlag.MISSING, notes="not offered by this provider",
-            ),
-            Measurement(
-                variable="current_v", value=None, unit="m s-1",
-                provenance=self._prov("marine", valid_time),
-                quality=QualityFlag.MISSING, notes="not offered by this provider",
-            ),
-        ]
+        try:
+            data = await self._fetch_marine(lat, lon)
+            idx = self._hour_index(data["hourly"]["time"], valid_time)
+            speed = _pick(data["hourly"], "ocean_current_velocity", idx)
+            direction = _pick(data["hourly"], "ocean_current_direction", idx)
+            if speed is None or direction is None:
+                raise ValueError("currents absent at this point/time")
+            rad = math.radians(direction)
+            # direction the current flows TOWARD (0°=N, 90°=E); km/h → m s-1
+            u = (speed / 3.6) * math.sin(rad)
+            v = (speed / 3.6) * math.cos(rad)
+            out = []
+            for var, val in (("current_u", u), ("current_v", v)):
+                m = Measurement(
+                    variable=var, value=val, unit="m s-1",
+                    provenance=self._prov("marine", valid_time),
+                    quality=QualityFlag.OK,
+                )
+                m.provenance.notes = _CURRENT_DERIVATION_NOTE
+                out.append(m)
+            return out
+        except Exception as exc:  # noqa: BLE001
+            return [
+                Measurement(
+                    variable=var, value=None, unit="m s-1",
+                    provenance=self._prov("marine", valid_time),
+                    quality=QualityFlag.MISSING, notes=str(exc),
+                )
+                for var in ("current_u", "current_v")
+            ]
 
     async def get_ocean_forecast(self, lat: float, lon: float, start: datetime, end: datetime) -> list[Measurement]:
         raise ProviderError("use get_wave_data/get_wind per timestamp")

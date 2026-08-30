@@ -65,7 +65,10 @@ def _install_erddapy_default_headers() -> None:
     import erddapy.core.url as _url_mod
 
     def _urlopen_with_headers(url: str, auth: tuple | None = None, **kwargs):
-        timeout = kwargs.pop("timeout", 60)
+        # requests-style (connect, read) pair: hosts that silently drop
+        # packets (common blocking behaviour for datacenter IPs) must fail
+        # fast on connect instead of burning the full read budget.
+        timeout = kwargs.pop("timeout", (8, 60))
         response = _requests.get(
             url,
             allow_redirects=True,

@@ -70,6 +70,17 @@ class Settings(BaseSettings):
     # keeps recommendations in genuinely open water. Metres.
     coastal_exclusion_band_m: float = 1500.0
 
+    # Validated pilot region (bounding box, degrees): the area where boundary
+    # layers, shorelines and data coverage are verified. Queries with an
+    # origin OUTSIDE this box still run, but every response carries an
+    # explicit caution so nobody mistakes an unvalidated area for a covered
+    # one. Defaults to the Rameswaram / Palk Bay / Gulf of Mannar pack.
+    supported_region_south: float = 6.3
+    supported_region_west: float = 77.5
+    supported_region_north: float = 10.7
+    supported_region_east: float = 81.6
+    supported_region_name: str = "Palk Bay & Gulf of Mannar"
+
     # ------------------------------------------------------------ datasets
     datasets_config: Path = REPO_ROOT / "backend" / "app" / "config" / "datasets.json"
     erddap_servers_config: Path = (

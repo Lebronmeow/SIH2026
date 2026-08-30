@@ -172,6 +172,21 @@ body,
   font-size: 12px;
 }
 
+/* coverage chip: the validated pilot region, from /api/system/status */
+.region-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: rgba(148, 163, 184, 0.06);
+}
+.region-chip svg { flex: none; color: var(--accent); }
+
 .field-label {
   display: block;
   font-size: 11px;

@@ -96,6 +96,7 @@ class FishingAdvisoryWorkflow:
         # 3 — Verification (integrity + hard-constraint re-check)
         problems = self._verify(response)
         problems += self._check_origin_coastal(response)
+        problems += self._check_supported_region(response)
         if problems:
             trace.steps.append("verification: " + "; ".join(problems))
         else:
@@ -226,6 +227,41 @@ class FishingAdvisoryWorkflow:
             )
         )
         return ["resolved origin is on land (ORIGIN_INLAND caution attached)"]
+
+    def _check_supported_region(self, response: RecommendationResponse) -> list[str]:
+        """Disclose queries outside the validated pilot region.
+
+        Boundary layers, shorelines and provider coverage are verified only
+        inside the configured supported-region bbox. An origin outside it
+        still gets a full deterministic answer, but the response carries an
+        explicit caution — nobody should mistake an unvalidated area for a
+        covered one.
+        """
+        origin = response.parsed_query.origin
+        if origin is None:
+            return []
+        s = get_settings()
+        inside = (
+            s.supported_region_south <= origin.lat <= s.supported_region_north
+            and s.supported_region_west <= origin.lon <= s.supported_region_east
+        )
+        if inside:
+            return []
+        response.warnings.append(
+            OrcaWarning(
+                severity="caution",
+                code="OUTSIDE_SUPPORTED_REGION",
+                message=(
+                    f"'{origin.place}' is outside the validated pilot region "
+                    f"({s.supported_region_south:g}–{s.supported_region_north:g}°N, "
+                    f"{s.supported_region_west:g}–{s.supported_region_east:g}°E). "
+                    "Boundary and shoreline checks are not verified here — treat this advice as indicative only."
+                ),
+                source="verification",
+                params={"place": origin.place},
+            )
+        )
+        return ["origin outside supported region (OUTSIDE_SUPPORTED_REGION caution attached)"]
 
     # ------------------------------------------------------------- helpers
     def _build_parser(self):

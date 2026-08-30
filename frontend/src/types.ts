@@ -131,6 +131,7 @@ export interface SystemStatus {
   banner_text: string;
   llm_reasoning_enabled: boolean;
   llm_provider: string;
+  supported_region: { name: string; south: number; west: number; north: number; east: number };
   sources: { id: string; name: string; organization: string; authority: string; license: string | null }[];
 }
 

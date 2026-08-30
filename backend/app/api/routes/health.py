@@ -31,5 +31,15 @@ def system_status() -> dict[str, object]:
         ),
         "llm_reasoning_enabled": settings.llm_enabled,
         "llm_provider": settings.llm_provider.value,
+        # Validated pilot region: the UI surfaces this as a coverage chip and
+        # the backend attaches an outside-region caution to responses whose
+        # origin falls outside it.
+        "supported_region": {
+            "name": settings.supported_region_name,
+            "south": settings.supported_region_south,
+            "west": settings.supported_region_west,
+            "north": settings.supported_region_north,
+            "east": settings.supported_region_east,
+        },
         "sources": registry.to_public_json(),
     }

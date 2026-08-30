@@ -89,7 +89,11 @@ def build_advisory_workflow(hub=None, language: str = "en") -> Any:
     class VerificationExecutor(Executor):
         @handler
         async def handle(self, response: Any, ctx: WorkflowContext[Any]) -> None:
+            # same verification suite as the direct pipeline: integrity checks,
+            # on-land origin disclosure, outside-region disclosure
             problems = advisory._verify(response)
+            problems += advisory._check_origin_coastal(response)
+            problems += advisory._check_supported_region(response)
             trace_sink["steps"].append(
                 "verification: " + ("; ".join(problems) if problems else "ok")
             )

@@ -98,6 +98,16 @@ export default function QueryPanel(props: {
       <h1 className="brand">ORCA</h1>
       <p className="tagline">{L.tagline}</p>
 
+      {system?.supported_region && (
+        <p className="region-chip" title={`${system.supported_region.south}–${system.supported_region.north}°N, ${system.supported_region.west}–${system.supported_region.east}°E`}>
+          <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11z" />
+            <circle cx="12" cy="10" r="2.5" />
+          </svg>
+          {L.pilotRegion}: {system.supported_region.name}
+        </p>
+      )}
+
       <label className="field-label" htmlFor="orca-query">{L.askOrca}</label>
       <textarea
         id="orca-query"

@@ -1,25 +1,15 @@
 /**
- * Left panel: natural-language query input (text or mic), language picker,
- * example queries and the honest status readouts (mode, sources, trace).
+ * Left panel: natural-language query input (text or mic), example queries
+ * and the honest status readouts (mode, sources, trace). The brand, pilot
+ * region and language picker live in the app top bar (App.tsx).
  */
 
 import { useEffect, useRef, useState } from "react";
 import { EXAMPLE_QUERIES, api } from "../api";
 import { canListen, listenOnce } from "../speech";
 import * as i18n from "../i18n";
-import { MicIcon, PinIcon, SpeakerIcon, StopIcon } from "./icons";
+import { MicIcon, SpeakerIcon, StopIcon } from "./icons";
 import type { SystemStatus, VoiceStatus, WorkflowTrace } from "../types";
-
-const LANGUAGES = [
-  { code: "en", label: "English" },
-  { code: "ta", label: "தமிழ் (Tamil)" },
-  { code: "te", label: "తెలుగు (Telugu)" },
-  { code: "ml", label: "മലയാളം (Malayalam)" },
-  { code: "hi", label: "हिन्दी (Hindi)" },
-  { code: "bn", label: "বাংলা (Bengali)" },
-  { code: "or", label: "ଓଡ଼ିଆ (Odia)" },
-  { code: "gu", label: "ગુજરાતી (Gujarati)" },
-];
 
 export default function QueryPanel(props: {
   system: SystemStatus | null;
@@ -114,16 +104,6 @@ export default function QueryPanel(props: {
 
   return (
     <aside className="panel left">
-      <h1 className="brand">ORCA</h1>
-      <p className="tagline">{L.tagline}</p>
-
-      {system?.supported_region && (
-        <p className="region-chip" title={`${system.supported_region.south}–${system.supported_region.north}°N, ${system.supported_region.west}–${system.supported_region.east}°E`}>
-          <PinIcon size={12} />
-          {L.pilotRegion}: {system.supported_region.name}
-        </p>
-      )}
-
       <label className="field-label" htmlFor="orca-query">{L.askOrca}</label>
       <textarea
         id="orca-query"
@@ -132,12 +112,7 @@ export default function QueryPanel(props: {
         rows={4}
         placeholder={L.placeholder}
       />
-      <div className="row">
-        <select value={language} onChange={(e) => props.onLanguage(e.target.value)} aria-label="Language">
-          {LANGUAGES.map((l) => (
-            <option key={l.code} value={l.code}>{l.label}</option>
-          ))}
-        </select>
+      <div className="row composer-row">
         <button
           className={`icon-btn ${recording || listening || transcribing ? "recording" : ""}`}
           title={transcribing ? L.micTranscribing : micTitle}

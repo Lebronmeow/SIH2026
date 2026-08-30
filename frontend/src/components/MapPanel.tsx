@@ -30,11 +30,14 @@ const INITIAL_VIEW = {
   zoom: 8.6,
 };
 
-// colors
+// colors — "chart room" palette: sea-green marks the answer, magenta marks
+// restricted lines (the Admiralty convention for boundaries on paper charts)
 const ZONE_COLOR = [56, 189, 248, 220]; // sky
-const RECOMMENDED_COLOR = [45, 212, 191, 255]; // teal accent
-const ROUTE_COLOR = [45, 212, 191, 255];
-const RING_COLOR = [45, 212, 191, 190]; // teal outline, dashed
+const SEA_GREEN = [20, 160, 104];
+const RECOMMENDED_COLOR = [...SEA_GREEN, 255] as number[];
+const ROUTE_COLOR = [...SEA_GREEN, 255] as number[];
+const RING_COLOR = [...SEA_GREEN, 190] as number[]; // dashed search-ring outline
+const RESTRICTED_COLOR = [186, 44, 128]; // chart magenta — IMBL / MPA
 const ORIGIN_COLOR = [250, 204, 21, 255]; // yellow
 const LABEL_OUTLINE = [15, 23, 42, 255]; // slate-900
 
@@ -253,8 +256,8 @@ export default function MapPanel(props: {
         data: boundaries.filter((f) => f.properties?.kind === "mpa" || f.properties?.kind === "restricted") as never,
         filled: true,
         stroked: true,
-        getFillColor: [239, 68, 68, 14] as never,
-        getLineColor: [239, 68, 68, 150] as never,
+        getFillColor: [...RESTRICTED_COLOR, 16] as never,
+        getLineColor: [...RESTRICTED_COLOR, 160] as never,
         lineWidthMinPixels: 2,
         pickable: true,
       }),
@@ -263,7 +266,7 @@ export default function MapPanel(props: {
         data: boundaries.filter((f) => f.properties?.kind === "imbl") as never,
         filled: false,
         stroked: true,
-        getLineColor: [239, 68, 68, 255] as never,
+        getLineColor: [...RESTRICTED_COLOR, 255] as never,
         getLineWidth: 3,
         lineWidthMinPixels: 3,
         pickable: true,
@@ -273,7 +276,7 @@ export default function MapPanel(props: {
         data: boundaries.filter((f) => f.properties?.kind === "search_ring") as never,
         stroked: true,
         filled: true,
-        getFillColor: [45, 212, 191, 10] as never,
+        getFillColor: [...SEA_GREEN, 10] as never,
         getLineColor: RING_COLOR as never,
         getLineWidth: 2,
         lineWidthMinPixels: 2,
@@ -302,9 +305,9 @@ export default function MapPanel(props: {
         getRadius: 2300,
         radiusUnits: "meters" as never,
         radiusMinPixels: 13,
-        getFillColor: [45, 212, 191, 26] as never,
+        getFillColor: [...SEA_GREEN, 26] as never,
         stroked: true,
-        getLineColor: [45, 212, 191, 110] as never,
+        getLineColor: [...SEA_GREEN, 110] as never,
         lineWidthMinPixels: 1.5,
         pickable: false,
       }),

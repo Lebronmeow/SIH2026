@@ -412,6 +412,21 @@ export default function RecommendationPanel(props: {
             </div>
           </div>
 
+          {/* safety read-out sits directly under the verdict — a fisherman
+              should meet the warnings before the rankings */}
+          {response.warnings.length > 0 && (
+            <>
+              <h3>{L.wTitle}</h3>
+              <ul className="warnings">
+                {response.warnings.map((w: Warning, i) => (
+                  <li key={i} className={SEVERITY_CLASS[w.severity] ?? "sev-info"}>
+                    <strong>{L[SEV_KEY[w.severity] ?? "sev_info"]}</strong> {warningText(w, L)}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
           {ranked.length > 0 && (
             <>
               <h3>{L.bestZones}</h3>
@@ -466,19 +481,6 @@ export default function RecommendationPanel(props: {
           {route && <TripCard route={route} L={L} />}
           {props.routeLoading && <p className="note dim">{L.route_loading}</p>}
           {props.routeError && !props.routeLoading && <p className="note dim">{L.route_failed}</p>}
-        </>
-      )}
-
-      {response.warnings.length > 0 && (
-        <>
-          <h3>{L.wTitle}</h3>
-          <ul className="warnings">
-            {response.warnings.map((w: Warning, i) => (
-              <li key={i} className={SEVERITY_CLASS[w.severity] ?? "sev-info"}>
-                <strong>{L[SEV_KEY[w.severity] ?? "sev_info"]}</strong> {warningText(w, L)}
-              </li>
-            ))}
-          </ul>
         </>
       )}
 

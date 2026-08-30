@@ -7,8 +7,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, stopSpeak } from "./api";
 import { browserStop } from "./speech";
 import * as i18n from "./i18n";
+import { LANGUAGES } from "./i18n";
 import type { AdvisoryResponse, RouteOut, SystemStatus, VoiceStatus, ZoneEvaluation } from "./types";
-import { AlertTriangleIcon } from "./components/icons";
+import { AlertTriangleIcon, PinIcon } from "./components/icons";
 import MapPanel from "./components/MapPanel";
 import QueryPanel from "./components/QueryPanel";
 import RecommendationPanel from "./components/RecommendationPanel";
@@ -107,6 +108,33 @@ export default function App() {
           <AlertTriangleIcon size={14} /> {L.wt_DEMO_MODE}
         </div>
       )}
+      <header className="topbar">
+        <div className="topbar-brand">
+          <span className="brand">ORCA</span>
+          <span className="topbar-sub">{L.tagline}</span>
+        </div>
+        {system?.supported_region && (
+          <p
+            className="region-chip"
+            title={`${system.supported_region.south}–${system.supported_region.north}°N, ${system.supported_region.west}–${system.supported_region.east}°E`}
+          >
+            <PinIcon size={12} />
+            {L.pilotRegion}: {system.supported_region.name}
+          </p>
+        )}
+        <select
+          className="topbar-lang"
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          aria-label="Language"
+        >
+          {LANGUAGES.map((l) => (
+            <option key={l.code} value={l.code}>
+              {l.label}
+            </option>
+          ))}
+        </select>
+      </header>
       <QueryPanel
         system={system}
         voice={voice}

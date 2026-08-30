@@ -1150,6 +1150,18 @@ const gu: Record<Key, string> = {
 
 export const STRINGS: Record<Lang, Record<Key, string>> = { en, ta, te, ml, hi, bn, or, gu };
 
+/** UI language list for the picker — labels in the language itself. */
+export const LANGUAGES: { code: Lang; label: string }[] = [
+  { code: "en", label: "English" },
+  { code: "ta", label: "தமிழ் (Tamil)" },
+  { code: "te", label: "తెలుగు (Telugu)" },
+  { code: "ml", label: "മലയാളം (Malayalam)" },
+  { code: "hi", label: "हिन्दी (Hindi)" },
+  { code: "bn", label: "বাংলা (Bengali)" },
+  { code: "or", label: "ଓଡ଼ିଆ (Odia)" },
+  { code: "gu", label: "ગુજરાતી (Gujarati)" },
+];
+
 /** Localize a template like "about {h} h {m} min" by replacing {placeholders}. */
 export function fmt(template: string, params: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (m, name) =>

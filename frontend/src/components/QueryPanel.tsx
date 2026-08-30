@@ -36,6 +36,7 @@ export default function QueryPanel(props: {
   const [text, setText] = useState(EXAMPLE_QUERIES[0]);
   const [recording, setRecording] = useState(false);
   const [listening, setListening] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [micNote, setMicNote] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const browserStt = canListen();
@@ -80,11 +81,14 @@ export default function QueryPanel(props: {
         rec.ondataavailable = (e) => chunks.push(e.data);
         rec.onstop = async () => {
           stream.getTracks().forEach((t) => t.stop());
+          setTranscribing(true);
           try {
             const heard = await api.transcribe(new Blob(chunks), language);
             setText(heard);
           } catch (e) {
             setMicNote(`Transcription unavailable: ${(e as Error).message}`);
+          } finally {
+            setTranscribing(false);
           }
         };
         rec.start();
@@ -135,10 +139,10 @@ export default function QueryPanel(props: {
           ))}
         </select>
         <button
-          className={`icon-btn ${recording || listening ? "recording" : ""}`}
-          title={micTitle}
-          aria-label={micTitle}
-          disabled={!micEnabled}
+          className={`icon-btn ${recording || listening || transcribing ? "recording" : ""}`}
+          title={transcribing ? L.micTranscribing : micTitle}
+          aria-label={transcribing ? L.micTranscribing : micTitle}
+          disabled={!micEnabled || transcribing}
           onClick={() => void toggleMic()}
         >
           {recording || listening ? <StopIcon size={15} /> : <MicIcon size={15} />}
@@ -153,6 +157,14 @@ export default function QueryPanel(props: {
             <i /><i /><i />
           </span>
           <span className="sonar-phase">{phaseText}</span>
+        </div>
+      )}
+      {transcribing && (
+        <div className="sonar-status" role="status" aria-live="polite">
+          <span className="sonar" aria-hidden>
+            <i /><i /><i />
+          </span>
+          <span className="sonar-phase">{L.micTranscribing}</span>
         </div>
       )}
       {micNote && <div className="error-box">{micNote}</div>}

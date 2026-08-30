@@ -11,6 +11,7 @@ GeospatialSafetyEngine; the scoring engine stays deterministic.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import uuid
@@ -250,14 +251,25 @@ class ZoneEvaluationService:
             )
 
         # ---- 3. fetch fields once per variable over the whole ring box
+        # Concurrent across variables: a dead ERDDAP server blackholes until
+        # connect-timeout, and sequential fetches would stack those penalties
+        # (7 variables × servers × timeout) past the edge proxy's patience.
+        # Priority ordering is preserved WITHIN each variable.
         bbox = self._bbox_of(candidates, origin)
-        self._fields = {}
-        for var in ("sst", "chlorophyll", "wave_height", "wind_u", "wind_v", "current_u", "current_v"):
+
+        async def _fetch_one(var: str) -> OceanField:
             try:
-                self._fields[var] = await self.hub.get_field(var, bbox, valid_time)
+                return await self.hub.get_field(var, bbox, valid_time)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("field fetch failed for %s: %s", var, exc)
-                self._fields[var] = OceanField.empty(var, "unknown", Provenance(source_id="none", source_name="fetch-failed", mode=settings.data_mode), bbox)
+                return OceanField.empty(
+                    var, "unknown",
+                    Provenance(source_id="none", source_name="fetch-failed", mode=settings.data_mode),
+                    bbox,
+                )
+
+        variables = ("sst", "chlorophyll", "wave_height", "wind_u", "wind_v", "current_u", "current_v")
+        self._fields = dict(zip(variables, await asyncio.gather(*(_fetch_one(v) for v in variables))))
         fields = self._fields
         trace.steps.append("fetched ocean fields: " + ", ".join(f"{k}={'ok' if not v.is_empty else 'MISSING'}" for k, v in fields.items()))
 

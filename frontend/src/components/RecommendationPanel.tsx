@@ -271,6 +271,7 @@ export default function RecommendationPanel(props: {
   selectedZone: ZoneEvaluation | null;
   selectedRoute: RouteOut | null;
   routeLoading: boolean;
+  routeError: boolean;
   language: string;
   voice: VoiceStatus | null;
   onPickZone: (zoneId: string | null) => void;
@@ -426,6 +427,7 @@ export default function RecommendationPanel(props: {
           {shown && <ZoneDetail zone={shown} L={L} />}
           {route && <TripCard route={route} L={L} />}
           {props.routeLoading && <p className="note dim">{L.route_loading}</p>}
+          {props.routeError && !props.routeLoading && <p className="note dim">{L.route_failed}</p>}
         </>
       )}
 

@@ -23,12 +23,14 @@
     "chlorophyll": {
       "provider": "erddap",
       "source_id": "erddap-noaa",
-      "dataset_id": "nesdisVHNSQchlaDaily",
+      "dataset_id": "erdMH1chla1day_R2022NRT",
       "protocol": "griddap",
-      "variable": "chlor_a",
+      "variable": "chlorophyll",
       "unit": "mg m-3",
-      "spatial_resolution": "0.0375°",
-      "extras": { "extra_dim": "altitude=0.0" }
+      "spatial_resolution": "0.0417°",
+      "extras": {
+        "note": "Aqua MODIS L3 SMI R2022 NRT, served directly on pfeg. The nesdisVHNSQ/VHN chla datasets 302-redirect to coastwatch.noaa.gov, which was unreachable on 2026-08-30 — this one is hosted locally and verified current (2026-08-28)."
+      }
     },
     "current_u": {
       "provider": "erddap",

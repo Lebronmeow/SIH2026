@@ -24,6 +24,7 @@ export default function App() {
   // route to a hand-picked (non-recommended) zone, fetched on selection
   const [selectedRoute, setSelectedRoute] = useState<RouteOut | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState(false);
 
   useEffect(() => {
     api.systemStatus().then(setSystem).catch(() => setSystem(null));
@@ -39,6 +40,7 @@ export default function App() {
     setSelectedZoneId(null);
     setSelectedRoute(null);
     setRouteLoading(false);
+    setRouteError(false);
     setLanguage(lang);
     try {
       const resp = await api.query(query, lang);
@@ -70,17 +72,22 @@ export default function App() {
     if (!zone || !origin || response.recommended?.candidate.id === zone.candidate.id) {
       setSelectedRoute(null);
       setRouteLoading(false);
+      setRouteError(false);
       return;
     }
     let cancelled = false;
     setRouteLoading(true);
+    setRouteError(false);
     api
       .optimizeRoute(origin.lat, origin.lon, zone.candidate.lat, zone.candidate.lon)
       .then((route) => {
         if (!cancelled) setSelectedRoute(route);
       })
       .catch(() => {
-        if (!cancelled) setSelectedRoute(null);
+        if (!cancelled) {
+          setSelectedRoute(null);
+          setRouteError(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setRouteLoading(false);
@@ -122,6 +129,7 @@ export default function App() {
         selectedZone={selectedZone}
         selectedRoute={selectedRoute}
         routeLoading={routeLoading}
+        routeError={routeError}
         language={language}
         voice={voice}
         onPickZone={setSelectedZoneId}

@@ -244,7 +244,20 @@ class ZoneEvaluationService:
         try:
             sel = da.sel(latitude=lat, longitude=lon, method="nearest")
             v = float(np.asarray(sel.values).squeeze())
-            return v if math.isfinite(v) else None
+            if math.isfinite(v):
+                return v
+            # cloud-masked (or otherwise missing) at the exact pixel: mean the
+            # finite cells in a small ±3-cell neighbourhood — deterministic,
+            # and honest for 4 km ocean-colour products with single-pixel holes
+            lat_idx = da.indexes["latitude"].get_indexer([sel.latitude.item()], method="nearest")[0]
+            lon_idx = da.indexes["longitude"].get_indexer([sel.longitude.item()], method="nearest")[0]
+            win = da.isel(
+                latitude=slice(max(0, lat_idx - 3), lat_idx + 4),
+                longitude=slice(max(0, lon_idx - 3), lon_idx + 4),
+            )
+            vals = np.asarray(win.values, dtype=float)
+            finite = vals[np.isfinite(vals)]
+            return float(finite.mean()) if finite.size else None
         except Exception:  # noqa: BLE001
             return None
 
@@ -591,12 +604,20 @@ class ZoneEvaluationService:
         if field is None or field.is_empty:
             prov = Provenance(source_id="none", source_name="unavailable", mode=get_settings().data_mode)
             return Measurement(variable=variable, value=None, unit=unit, provenance=prov, quality=QualityFlag.MISSING)
+        prov = field.provenance.model_copy(deep=True)
+        # an older observation must not present as current — the UI renders
+        # STALE as a "cached" badge and shows prov.valid_time (the real date)
+        flag = QualityFlag.OK
+        if value is not None and prov.valid_time is not None:
+            vt = prov.valid_time if prov.valid_time.tzinfo else prov.valid_time.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc) - vt).total_seconds() > 3 * 86400:
+                flag = QualityFlag.STALE
         return Measurement(
             variable=variable,
             value=value,
             unit=unit,
-            provenance=field.provenance.model_copy(deep=True),
-            quality=QualityFlag.OK if value is not None else QualityFlag.MISSING,
+            provenance=prov,
+            quality=flag if value is not None else QualityFlag.MISSING,
         )
 
     @staticmethod

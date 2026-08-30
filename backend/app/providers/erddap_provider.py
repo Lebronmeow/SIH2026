@@ -153,6 +153,32 @@ def _select_nearest_time(da: xr.DataArray, valid_time: datetime) -> xr.DataArray
     return da.sel(time=ts, method="nearest")
 
 
+def _latest_step_with_data(da: xr.DataArray, valid_time: datetime) -> tuple[xr.DataArray, pd.Timestamp] | None:
+    """Most recent time step at or before ``valid_time`` holding ≥1 finite
+    pixel in this window, or None when every step is empty.
+
+    Optical ocean-colour products (chlorophyll) are cloud-gated: during the
+    monsoon the *nearest* day is routinely 100% masked over the Bay of Bengal
+    even though a few days earlier the region was observed. Falling back to
+    the latest OBSERVED step — with that step's own timestamp carried in
+    provenance — is the honest alternative to reporting "missing" for weeks.
+    """
+    if "time" not in da.dims or da.sizes["time"] < 2:
+        return None
+    ts = pd.Timestamp(valid_time)
+    idx = da.indexes["time"]
+    if getattr(ts, "tzinfo", None) is not None:
+        ts = ts.tz_convert(idx.tz).tz_localize(None) if idx.tz is None else ts.tz_convert(idx.tz)
+    elif idx.tz is not None:
+        ts = ts.tz_localize(idx.tz)
+    steps = [t for t in idx if t <= ts] or list(idx)  # analyses only look back
+    for t in sorted(steps, reverse=True):
+        step = da.sel(time=t)
+        if float(np.isfinite(step.values.astype(float)).sum()) > 0:
+            return step, t
+    return None
+
+
 def _canonicalize(ds: xr.Dataset) -> xr.Dataset:
     """Rename dims/coords to canonical latitude/longitude/time and drop
     leftover single-value axes (altitude/depth/height) from pinning."""
@@ -371,6 +397,21 @@ class ErddapProvider(OceanDataProvider):
             # requested hour) — provenance.valid_time reports what we actually
             # got, not what was asked for
             da = _select_nearest_time(da, valid_time)
+            if not bool(np.isfinite(da.values.astype(float)).any()):
+                # the nearest day is fully masked (cloud-gated optical data) —
+                # fall back to the latest day with real pixels and date it
+                fallback = _latest_step_with_data(ds[entry.variable], valid_time)
+                if fallback is not None:
+                    da, used_t = fallback
+                    prov.valid_time = (
+                        used_t.to_pydatetime().replace(tzinfo=timezone.utc)
+                        if used_t.tzinfo is None
+                        else used_t.tz_convert(timezone.utc).to_pydatetime()
+                    )
+                    logger.info(
+                        "%s: nearest step fully masked — using latest observed step %s",
+                        variable, used_t,
+                    )
         unit = _unit_of(da)
         return OceanField(variable, unit if unit != "unknown" else (entry.unit or "unknown"), da, prov, bbox)
 

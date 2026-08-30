@@ -154,25 +154,41 @@ class ZoneEvaluationService:
         return features, evidence
 
     # ---------------------------------------------------------- candidates
+    # Deterministic radius spread (fractions of the requested distance). A
+    # single-radius ring reads as an artificial circle on the chart; this
+    # spread scatters candidates across the 0.75–1.25× annulus so the layout
+    # matches how real fishing grounds are charted. Same pattern every run.
+    _RADII_SPREAD = (0.75, 1.0, 1.25)
+
     def generate_candidates(self, origin: LatLon, distance_km: float) -> list[ZoneCandidate]:
-        """Ring candidates every (360/n)°; hard-constraint failures kept and
-        flagged so the response can show *why* a bearing was excluded."""
+        """Ring candidates every (360/n)° with a deterministic radius spread;
+        hard-constraint failures kept and flagged so the response can show
+        *why* a bearing was excluded."""
+        band_m = get_settings().coastal_exclusion_band_m
         candidates: list[ZoneCandidate] = []
         self._pre_excluded = {}
         for i in range(self.n_bearings):
             bearing = i * (360.0 / self.n_bearings)
-            lon2, lat2, _back = _GEOD.fwd(origin.lon, origin.lat, bearing, distance_km * 1000.0)
+            radius_km = distance_km * self._RADII_SPREAD[i % len(self._RADII_SPREAD)]
+            lon2, lat2, _back = _GEOD.fwd(origin.lon, origin.lat, bearing, radius_km * 1000.0)
             cand = ZoneCandidate(
                 id=f"zone-{i:02d}",
                 lat=round(float(lat2), 4),
                 lon=round(float(lon2), 4),
                 bearing_deg=round(bearing, 1),
-                distance_from_origin_km=distance_km,
+                distance_from_origin_km=round(radius_km, 1),
             )
             geofence = self.safety.check_geofence(LatLon(lat=cand.lat, lon=cand.lon))
             if not geofence.ok:
                 reasons = [w.code for w in geofence.warnings if w.severity == "critical"]
                 self._pre_excluded[cand.id] = "/".join(reasons) if reasons else "hard constraint"
+                continue
+            # coastal band: shoreline datasets disagree by kilometres around
+            # complicated coasts, and zones hugging the surf are not usable —
+            # require a minimum clearance from the land polygons
+            d_land = self.safety.distance_to_land(LatLon(lat=cand.lat, lon=cand.lon))
+            if d_land is not None and d_land < band_m:
+                self._pre_excluded[cand.id] = "COASTAL_BAND"
                 continue
             candidates.append(cand)
         return candidates
@@ -520,7 +536,10 @@ class ZoneEvaluationService:
             safety_engine=self.safety,
             hazard_sampler=self._route_hazard,
             vessel_speed_knots=self.vessel_speed_knots,
-            cell_deg=0.05,
+            # 0.025° ≈ 2.7 km cells: fine enough to thread the Palk Strait /
+            # Pamban channel (a 5.5 km cell could not resolve the island
+            # passages) while keeping A* in the sub-second range.
+            cell_deg=0.025,
         )
         return engine.calculate_safe_route(origin, dest)
 

@@ -1,6 +1,12 @@
-/** Thin typed client over the ORCA FastAPI backend (same-origin via Vite proxy). */
+/** Thin typed client over the ORCA FastAPI backend (same-origin via Vite proxy,
+ * or VITE_API_BASE when the backend is hosted separately, e.g. Render). */
 
 import type { AdvisoryResponse, SystemStatus, VoiceStatus } from "./types";
+
+// Deployed builds point VITE_API_BASE at the backend origin (no trailing
+// slash); local dev uses the Vite proxy and leaves it empty.
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "");
+const url = (path: string) => `${API_BASE}${path}`;
 
 async function json<T>(resp: Response): Promise<T> {
   if (!resp.ok) {
@@ -28,13 +34,13 @@ export function stopSpeak(): void {
 
 export const api = {
   systemStatus: () =>
-    fetch("/api/system/status").then((r) => json<SystemStatus>(r)),
+    fetch(url("/api/system/status")).then((r) => json<SystemStatus>(r)),
 
   voiceStatus: () =>
-    fetch("/api/voice/status").then((r) => json<VoiceStatus>(r)),
+    fetch(url("/api/voice/status")).then((r) => json<VoiceStatus>(r)),
 
   query: (query: string, language: string, signal?: AbortSignal) =>
-    fetch("/api/query", {
+    fetch(url("/api/query"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, language }),
@@ -42,11 +48,11 @@ export const api = {
     }).then((r) => json<AdvisoryResponse>(r)),
 
   recommendation: (requestId: string) =>
-    fetch(`/api/recommendations/${requestId}`).then((r) => json<AdvisoryResponse>(r)),
+    fetch(url(`/api/recommendations/${requestId}`)).then((r) => json<AdvisoryResponse>(r)),
 
   transcribe: async (audioBlob: Blob, language: string): Promise<string> => {
     const b64 = await blobToBase64(audioBlob);
-    const r = await fetch("/api/voice/transcribe", {
+    const r = await fetch(url("/api/voice/transcribe"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ audio_base64: b64, language, encoding: "wav" }),
@@ -56,7 +62,7 @@ export const api = {
   },
 
   speak: (text: string, language: string, onEnd?: () => void): Promise<void> =>
-    fetch("/api/voice/speak", {
+    fetch(url("/api/voice/speak"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, language }),
@@ -64,8 +70,8 @@ export const api = {
       .then((r) => json<{ audio_base64: string; format?: string }>(r))
       .then(({ audio_base64, format }) => {
         const bytes = Uint8Array.from(atob(audio_base64), (c) => c.charCodeAt(0));
-        const url = URL.createObjectURL(new Blob([bytes], { type: format === "mp3" ? "audio/mpeg" : "audio/wav" }));
-        const audio = new Audio(url);
+        const blobUrl = URL.createObjectURL(new Blob([bytes], { type: format === "mp3" ? "audio/mpeg" : "audio/wav" }));
+        const audio = new Audio(blobUrl);
         currentAudio = audio;
         audio.onended = () => {
           if (currentAudio === audio) currentAudio = null;
@@ -76,7 +82,7 @@ export const api = {
           onEnd?.();
         };
         audio.play();
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
       }),
 };
 

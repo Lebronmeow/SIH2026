@@ -45,6 +45,7 @@ export default function MapPanel(props: {
   const { response, selectedZoneId } = props;
   const L = i18n.t(props.language);
   const mapRef = useRef<MapRef>(null);
+  const containerRef = useRef<HTMLElement>(null);
 
   // Frame the whole search area (ring + zones + route) whenever a new
   // response arrives, so users always see the full picture.
@@ -97,6 +98,21 @@ export default function MapPanel(props: {
     };
   }, [fitToResults]);
 
+  // ResizeObserver: catches pane-size changes that window resize events miss
+  // (orientation change, desktop column squeeze, initial mobile mount). The
+  // deck.gl overlay only resizes when the MapLibre map fires its own resize
+  // event, so the container must be re-read on the React side.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      const map = mapRef.current;
+      if (map) map.resize();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const scatters = useMemo(() => {
     const zones = response?.zones.filter((z) => !z.excluded) ?? [];
     const recommendedId = response?.recommended?.candidate.id;
@@ -124,13 +140,18 @@ export default function MapPanel(props: {
     }));
   }, [response]);
 
-  // Harbour / starting point: from the search ring when present, else route start.
+  // Harbour / starting point. The route's first coordinate is the *water*
+  // launch point the routing engine snapped to (the departure place itself
+  // is usually a town centre ON land). Only when no route was built do we
+  // fall back to the ring origin.
   const originPos = useMemo<[number, number] | null>(() => {
     if (!response) return null;
+    const start = response.route?.coords?.[0];
+    if (Array.isArray(start) && start.length === 2) return [start[0], start[1]];
     const ring = response.map_layers.find((f) => f.properties?.kind === "search_ring");
     const o = ring?.properties?.origin;
     if (Array.isArray(o) && o.length === 2) return [o[0] as number, o[1] as number];
-    return response.route?.coords?.[0] ?? null;
+    return null;
   }, [response]);
 
   const routePath = useMemo(() => {
@@ -256,7 +277,7 @@ export default function MapPanel(props: {
   );
 
   return (
-    <main className="map-container">
+    <main className="map-container" ref={containerRef}>
       <Map
         ref={mapRef}
         initialViewState={INITIAL_VIEW}

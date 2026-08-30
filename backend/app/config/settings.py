@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     # Boundaries / restricted-area layer directory (GeoJSON/GeoPackage files).
     boundaries_dir: Path = REPO_ROOT / "data" / "demo" / "boundaries"
 
+    # Coastal exclusion band: candidate zones closer than this to the land
+    # polygons are pre-excluded. Shoreline datasets disagree by 1-3 km near
+    # complicated coasts, and no small craft fishes in the surf — the band
+    # keeps recommendations in genuinely open water. Metres.
+    coastal_exclusion_band_m: float = 1500.0
+
     # ------------------------------------------------------------ datasets
     datasets_config: Path = REPO_ROOT / "backend" / "app" / "config" / "datasets.json"
     erddap_servers_config: Path = (

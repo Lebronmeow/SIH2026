@@ -1,0 +1,24 @@
+# Render blueprint for the ORCA backend (free tier).
+# Deploy: Render dashboard → New → Blueprint → point at this repo (branch main).
+# The backend URL this creates becomes the rewrite target in frontend/vercel.json
+# (and the VITE_API_BASE build env, if you route via env instead of the proxy).
+services:
+  - type: web
+    name: orca-backend
+    runtime: docker
+    dockerfilePath: ./docker/backend.Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/system/status
+    envVars:
+      - key: ORCA_DATA_MODE
+        value: live
+      # Update after the frontend deploy: add your vercel.app origin here.
+      - key: ORCA_CORS_ORIGINS
+        value: '["http://localhost:5173"]'
+      - key: ORCA_LLM_PROVIDER
+        sync: false
+      - key: ORCA_LLM_API_KEY
+        sync: false
+      - key: ORCA_LLM_MODEL
+        sync: false

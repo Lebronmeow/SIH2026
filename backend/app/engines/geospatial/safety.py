@@ -200,6 +200,11 @@ class GeospatialSafetyEngine:
         hits = [h for h in self._hits_at_point(point) if h.kind == BoundaryKind.IMBL]
         return min((h.distance_m for h in hits), default=None)
 
+    def distance_to_land(self, point: LatLon) -> float | None:
+        """Metres to the nearest land polygon (0 when the point is on land)."""
+        hits = [h for h in self._hits_at_point(point) if h.kind == BoundaryKind.LAND]
+        return min((h.distance_m for h in hits), default=None)
+
     distance_to_boundary = distance_to_imbl  # alias per spec naming
 
     def check_geofence(self, point: LatLon) -> GeofenceResult:

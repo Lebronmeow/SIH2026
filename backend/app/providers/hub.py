@@ -132,5 +132,18 @@ class OceanDataHub:
                     return field
             except Exception as exc:  # noqa: BLE001
                 logger.warning("field %s from %s failed: %s", variable, provider.source_id, exc)
+        # LIVE fallback: an outage on one server (e.g. PacIOOS hosting wind and
+        # wave fields) must not blind the whole advisory. Open-Meteo serves
+        # wind speed+direction and wave height as point forecasts; the provider
+        # builds a deterministic lattice grid from them (derivation documented
+        # in provenance). Primary sources are always tried first.
+        if self._openmeteo is not None:
+            try:
+                field = await self._openmeteo.get_field(variable, bbox, valid_time)
+                if not field.is_empty:
+                    logger.info("field %s served by open-meteo fallback grid", variable)
+                    return field
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("open-meteo field fallback for %s failed: %s", variable, exc)
         prov = Provenance(source_id="none", source_name="unconfigured", mode=self.mode)
         return OceanField.empty(variable=variable, unit="unknown", provenance=prov, bbox=bbox)

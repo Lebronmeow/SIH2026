@@ -10,19 +10,33 @@ Requests are plain HTTP JSON (httpx), so this provider is fully async.
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime, timezone
 
 import httpx
+import numpy as np
+import xarray as xr
 
 from app.config.registry import registry
 from app.config.settings import get_settings
-from app.providers.base import OceanDataProvider, ProviderError
+from app.providers.base import OceanDataProvider, OceanField, ProviderError
 from app.schemas.common import BoundingBox, Measurement, Provenance, QualityFlag
 
 logger = logging.getLogger(__name__)
 
 _HOURLY_MARINE = ["wave_height", "wave_period", "wave_direction", "sea_surface_temperature"]
 _HOURLY_WEATHER = ["wind_speed_10m", "wind_direction_10m", "wind_gusts_10m", "precipitation"]
+
+# LIVE-mode gridded fallback: variables this provider can stand in for when
+# the primary ERDDAP source is unreachable (e.g. PacIOOS outage).
+_FIELD_FALLBACK_VARS = ("wind_u", "wind_v", "wave_height")
+_DERIVATION_NOTE = (
+    "wind components derived from the provider's wind_speed + wind_direction "
+    "via the standard meteorological decomposition u = -V·sin(θ), v = -V·cos(θ) "
+    "(θ = direction the wind blows FROM) — same observation, vector form"
+)
+_FIELD_LATTICE_STEP_DEG = 0.25
+_FIELD_LATTICE_MAX_N = 12  # per axis; 12x12 = 144 points, within API limits
 
 
 def _pick(series: dict[str, list], name: str, idx: int) -> float | None:
@@ -126,6 +140,98 @@ class OpenMeteoProvider(OceanDataProvider):
             )
         return out
 
+    # ----------------------------------------------------------------- fields
+    @staticmethod
+    def _lattice(bbox: BoundingBox) -> tuple[list[float], list[float]]:
+        """Deterministic sample grid over ``bbox`` (≥2 points per axis)."""
+        def axis(lo: float, hi: float) -> list[float]:
+            n = int(round((hi - lo) / _FIELD_LATTICE_STEP_DEG)) + 1
+            n = max(2, min(n, _FIELD_LATTICE_MAX_N))
+            return [round(lo + (hi - lo) * i / (n - 1), 4) for i in range(n)]
+        return axis(bbox.south, bbox.north), axis(bbox.west, bbox.east)
+
+    async def _lattice_field(self, variable: str, bbox: BoundingBox, valid_time: datetime) -> OceanField:
+        """Gridded fallback built from point forecasts over a fixed lattice.
+
+        Serves as the LIVE fallback when the ERDDAP source for a gridded
+        variable is down. One multi-coordinate HTTP request per call; values
+        are the provider's own (wind speed+direction decomposed to u/v by the
+        documented meteorological formula — no invented numbers).
+        """
+        lats, lons = self._lattice(bbox)
+        prov = self._prov("forecast" if variable != "wave_height" else "marine", valid_time)
+        unit = "m" if variable == "wave_height" else "m s-1"
+        # Open-Meteo pairs multi-coordinate lists element-wise, so the lat/lon
+        # cartesian product is expanded into explicit point pairs up front.
+        pairs = [(la, lo) for la in lats for lo in lons]
+        lat_q = ",".join(str(la) for la, _ in pairs)
+        lon_q = ",".join(str(lo) for _, lo in pairs)
+        try:
+            if variable == "wave_height":
+                params = {
+                    "latitude": lat_q,
+                    "longitude": lon_q,
+                    "hourly": "wave_height",
+                    "timezone": "UTC",
+                }
+                async with httpx.AsyncClient(timeout=30) as client:
+                    r = await client.get(self._marine_base, params=params)
+                    r.raise_for_status()
+            else:
+                params = {
+                    "latitude": lat_q,
+                    "longitude": lon_q,
+                    "hourly": "wind_speed_10m,wind_direction_10m",
+                    "wind_speed_unit": "ms",
+                    "timezone": "UTC",
+                }
+                async with httpx.AsyncClient(timeout=30) as client:
+                    r = await client.get(self._base, params=params)
+                    r.raise_for_status()
+        except Exception as exc:  # noqa: BLE001 — degrade like any other source
+            logger.warning("open-meteo lattice field %s failed: %s", variable, exc)
+            return OceanField.empty(variable, unit, prov, bbox)
+
+        items = r.json() if isinstance(r.json(), list) else [r.json()]
+        grid = np.full((len(lats), len(lons)), np.nan)
+        lat_ix = {v: i for i, v in enumerate(lats)}
+        lon_ix = {v: i for i, v in enumerate(lons)}
+        n_filled = 0
+        for item in items:
+            try:
+                if item.get("hourly") is None:
+                    continue
+                idx = self._hour_index(item["hourly"]["time"], valid_time)
+                if variable == "wave_height":
+                    value = _pick(item["hourly"], "wave_height", idx)
+                    i = lat_ix.get(min(lats, key=lambda v: abs(v - float(item["latitude"]))))
+                    j = lon_ix.get(min(lons, key=lambda v: abs(v - float(item["longitude"]))))
+                    if value is not None and i is not None and j is not None:
+                        grid[i, j] = value
+                        n_filled += 1
+                else:
+                    speed = _pick(item["hourly"], "wind_speed_10m", idx)
+                    direction = _pick(item["hourly"], "wind_direction_10m", idx)
+                    i = lat_ix.get(min(lats, key=lambda v: abs(v - float(item["latitude"]))))
+                    j = lon_ix.get(min(lons, key=lambda v: abs(v - float(item["longitude"]))))
+                    if speed is not None and direction is not None and i is not None and j is not None:
+                        rad = math.radians(direction)
+                        u, v = -speed * math.sin(rad), -speed * math.cos(rad)
+                        grid[i, j] = u if variable == "wind_u" else v
+                        n_filled += 1
+            except (KeyError, ValueError, TypeError) as exc:
+                logger.warning("open-meteo lattice point skipped: %s", exc)
+        if n_filled == 0:
+            return OceanField.empty(variable, unit, prov, bbox)
+        da = xr.DataArray(grid, coords={"latitude": lats, "longitude": lons}, dims=("latitude", "longitude"))
+        prov.notes = _DERIVATION_NOTE if variable in ("wind_u", "wind_v") else "fallback grid from point forecasts"
+        return OceanField(variable, unit, da, prov, bbox)
+
+    async def get_field(self, variable: str, bbox: BoundingBox, valid_time: datetime) -> OceanField:
+        if variable not in _FIELD_FALLBACK_VARS:
+            raise ProviderError("Open-Meteo is point-based; use ERDDAP/Demo providers for fields")
+        return await self._lattice_field(variable, bbox, valid_time)
+
     # ---- interface completeness: Open-Meteo is forecast-only -------------
     async def get_available_datasets(self) -> list[dict[str, object]]:
         return [
@@ -177,6 +283,3 @@ class OpenMeteoProvider(OceanDataProvider):
 
     async def get_ocean_forecast(self, lat: float, lon: float, start: datetime, end: datetime) -> list[Measurement]:
         raise ProviderError("use get_wave_data/get_wind per timestamp")
-
-    async def get_field(self, variable: str, bbox: BoundingBox, valid_time: datetime) -> object:
-        raise ProviderError("Open-Meteo is point-based; use ERDDAP/Demo providers for fields")

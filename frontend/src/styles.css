@@ -26,25 +26,28 @@ body,
   color: var(--text);
 }
 
+/* The three-region shell uses named areas at every width so no panel ever
+ * auto-places into the wrong row (the earlier "app collapses without the
+ * demo banner" bug). Layouts:
+ *   >1024px  query | map | recommendation   (three columns, app-height scroll)
+ *   ≤1024px  map → query → recommendation   (single column, document scroll)
+ */
 .app-shell {
   display: grid;
+  height: 100%;
   grid-template-columns: 340px 1fr 380px;
   grid-template-rows: auto 1fr;
-  height: 100%;
+  grid-template-areas:
+    "banner banner banner"
+    "left   map   right";
 }
 
-/* The three panels ALWAYS live in row 2 (the 1fr row). Without this, an
- * absent banner (live mode) lets them auto-place into the auto-height row 1
- * and the whole app collapses to its content height. */
-.panel.left,
-.panel.right,
-.map-container {
-  grid-row: 2;
+.banner {
+  grid-area: banner;
 }
 
 /* ------------------------------------------------------------------ banner */
 .banner {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -59,6 +62,86 @@ body,
 
 .banner.hidden {
   display: none;
+}
+
+/* ------------------------------------------------------------------ panels */
+.panel.left {
+  grid-area: left;
+}
+
+.map-container {
+  grid-area: map;
+}
+
+.panel.right {
+  grid-area: right;
+}
+
+/* ------------------------------------------------------- tablet / narrow */
+@media (max-width: 1280px) {
+  .app-shell {
+    grid-template-columns: 300px 1fr 340px;
+  }
+}
+
+/* ------------------------------------------------------------ mobile */
+@media (max-width: 1024px) {
+  .app-shell {
+    height: auto;
+    min-height: 100%;
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-template-areas:
+      "banner"
+      "map"
+      "left"
+      "right";
+  }
+
+  /* The map needs its own height once the shell stops filling the viewport. */
+  .map-container {
+    height: 46vh;
+    height: 46dvh;
+    min-height: 280px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* borders follow the new stacking direction */
+  .panel {
+    border-right: none;
+  }
+
+  .panel.right {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Single-column stack: the page itself scrolls. */
+  .panel {
+    overflow: visible;
+  }
+
+  /* 44px tap targets (mobile accessibility floor) */
+  textarea,
+  select,
+  button {
+    min-height: 44px;
+  }
+
+  .map-legend {
+    font-size: 10.5px;
+    gap: 8px;
+    padding: 6px 10px;
+    max-width: calc(100% - 20px);
+  }
+
+  .verdict-title {
+    font-size: 15px;
+  }
+
+  .verdict-icon {
+    font-size: 22px;
+  }
 }
 
 /* ------------------------------------------------------------------ panels */

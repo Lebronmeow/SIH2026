@@ -850,6 +850,20 @@ ol.zones-list {
   margin: 4px 0 10px;
   display: grid;
   gap: 6px;
+  /* every evaluated zone stays reachable — the list scrolls instead of
+   * silently capping at five rows */
+  max-height: 16.5rem;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+ol.zones-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+ol.zones-list::-webkit-scrollbar-thumb {
+  background: var(--rule-strong);
+  border-radius: 3px;
 }
 
 .zones-list button {

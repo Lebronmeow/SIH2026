@@ -316,6 +316,16 @@ export default function RecommendationPanel(props: {
   const route = props.selectedRoute ?? response.route;
   const verdict = verdictOf(response.warnings, L);
   const VIcon = verdict.icon;
+  // Inspecting a non-recommended zone swaps the plate to THAT zone's own
+  // verdict, derived only from its backend-computed zone_warnings — the
+  // advisory-level verdict returns as soon as the recommended row is picked.
+  const pickedOther = !!(selectedZone && rec && selectedZone.candidate.id !== rec.candidate.id);
+  const plate = pickedOther ? verdictOf(selectedZone.zone_warnings ?? [], L) : verdict;
+  const zoneFlagText = pickedOther
+    ? (selectedZone.zone_warnings?.length
+        ? selectedZone.zone_warnings.map((w) => warningText(w, L)).join(" · ")
+        : L.z_noFlags)
+    : null;
   const missing: { label: string; icon: IconCmp }[] = [];
   if (response.insufficient?.missing_variables) {
     const seen = new Set<string>();
@@ -329,8 +339,7 @@ export default function RecommendationPanel(props: {
     }
   }
   const ranked = response.zones
-    .filter((z) => !z.excluded && z.rank != null)
-    .slice(0, 5);
+    .filter((z) => !z.excluded && z.rank != null);
 
   function endPlayback() {
     stopAll();
@@ -404,11 +413,19 @@ export default function RecommendationPanel(props: {
         </>
       ) : (
         <>
-          <div className={`verdict ${verdict.cls}`} role="status">
+          <div className={`verdict ${plate.cls}`} role="status">
             <span className="verdict-icon" aria-hidden><VIcon size={22} /></span>
             <div>
-              <div className="verdict-title">{verdict.title}</div>
-              <div className="verdict-sub">{verdict.sub}</div>
+              <div className="verdict-title">{plate.title}</div>
+              <div className="verdict-sub">
+                {pickedOther
+                  ? `${i18n.fmt(L.z_viewing, {
+                      r: selectedZone.rank ?? "—",
+                      d: selectedZone.candidate.distance_from_origin_km,
+                      dir: dirWords(selectedZone.candidate.bearing_deg, L),
+                    })} — ${zoneFlagText}`
+                  : plate.sub}
+              </div>
             </div>
           </div>
 
@@ -429,7 +446,7 @@ export default function RecommendationPanel(props: {
 
           {ranked.length > 0 && (
             <>
-              <h3>{L.bestZones}</h3>
+              <h3>{L.bestZones} ({ranked.length})</h3>
               <ol className="zones-list">
                 {ranked.map((z) => {
                   const active = shown?.candidate.id === z.candidate.id;

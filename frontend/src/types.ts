@@ -56,6 +56,9 @@ export interface ZoneEvaluation {
   excluded: boolean;
   exclusion_reason: string | null;
   rank: number | null;
+  /** Hazard flags computed for THIS zone by the backend (deterministic
+   *  thresholds on its own measurements). Empty when the zone is clear. */
+  zone_warnings?: Warning[];
 }
 
 export interface RouteOut {

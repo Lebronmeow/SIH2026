@@ -59,6 +59,10 @@ class ZoneEvaluation(BaseModel):
     excluded: bool = False
     exclusion_reason: str | None = None
     rank: int | None = None
+    # hazard flags for THIS zone (deterministic thresholds on its own
+    # measurements) — lets the UI show a per-zone verdict when the user
+    # inspects a non-recommended zone
+    zone_warnings: list[Warning] = Field(default_factory=list)
 
 
 class RouteOut(BaseModel):

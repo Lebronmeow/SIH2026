@@ -73,6 +73,30 @@ def distance_km_between(a: LatLon, b: LatLon) -> float:
     return m / 1000.0
 
 
+def hazard_cautions(wave_m: float | None, wind_kmh: float | None) -> list[OrcaWarning]:
+    """Small-craft hazard cautions for ONE point, from its own measurements.
+
+    Same deterministic thresholds wherever a wave/wind pair is judged —
+    per-zone (ZoneEvaluation.zone_warnings) and advisory-level (the
+    recommended zone's flags feed the top-level warnings list). Only fires
+    when a value exists; never fabricated.
+    """
+    out: list[OrcaWarning] = []
+    if wave_m is not None and wave_m >= ROUGH_SEA_M:
+        out.append(OrcaWarning(
+            severity="caution", code="ROUGH_SEA",
+            message=f"Waves of {wave_m:.1f} m expected at this zone — rough sea; small craft should be cautious.",
+            source="orca",
+            params={"wave_m": round(wave_m, 1)}))
+    if wind_kmh is not None and wind_kmh >= STRONG_WIND_KMH:
+        out.append(OrcaWarning(
+            severity="caution", code="STRONG_WIND",
+            message=f"Wind of {wind_kmh:.0f} km/h expected at this zone — strong wind; handle small craft with care.",
+            source="orca",
+            params={"wind_kmh": round(wind_kmh, 0)}))
+    return out
+
+
 class _FastSampler:
     """Nearest-cell lookup on a plain numpy array.
 
@@ -407,24 +431,14 @@ class ZoneEvaluationService:
                                         message="No wave data available — wave risk NOT evaluated. Treat safety assessment as incomplete.",
                                         source="orca"))
 
-        # deterministic hazard cautions from the recommended zone's own
-        # measurements (never fabricated: only fires when a value exists)
+        # hazard cautions from the recommended zone's own evaluation — the
+        # per-zone flags were computed deterministically in _evaluate_one;
+        # the advisory repeats the best zone's flags at the top level
         if best is not None:
-            vals = {m.variable: m.value for m in best.measurements}
-            wave_m = vals.get("wave_height_m")
-            wind_kmh = vals.get("wind_speed_kmh")
-            if wave_m is not None and wave_m >= ROUGH_SEA_M:
-                warnings.append(OrcaWarning(
-                    severity="caution", code="ROUGH_SEA",
-                    message=f"Waves of {wave_m:.1f} m expected at the recommended zone — rough sea; small craft should be cautious.",
-                    source="orca",
-                    params={"wave_m": round(wave_m, 1)}))
-            if wind_kmh is not None and wind_kmh >= STRONG_WIND_KMH:
-                warnings.append(OrcaWarning(
-                    severity="caution", code="STRONG_WIND",
-                    message=f"Wind of {wind_kmh:.0f} km/h expected at the recommended zone — strong wind; handle small craft with care.",
-                    source="orca",
-                    params={"wind_kmh": round(wind_kmh, 0)}))
+            warnings.extend(
+                w.model_copy(update={"message": w.message.replace("at this zone", "at the recommended zone")})
+                for w in best.zone_warnings
+            )
 
         # ---- official hazard warnings (GDACS / INCOIS / IMD) — deterministic
         # ingestion of machine-readable alert feeds; failures degrade to notes
@@ -588,6 +602,7 @@ class ZoneEvaluationService:
         if excluded:
             critical = [w.code for w in geofence.warnings if w.severity == "critical"]
             reason = "/".join(critical) if critical else "hard constraint violation"
+        zone_warnings = hazard_cautions(wave_val, wind_kmh)
         return ZoneEvaluation(
             candidate=cand,
             score=score,
@@ -597,6 +612,7 @@ class ZoneEvaluationService:
             distance_to_boundary_km=round(dist_imbl_km, 2) if dist_imbl_km is not None else None,
             excluded=excluded,
             exclusion_reason=reason,
+            zone_warnings=zone_warnings,
         )
 
     @staticmethod

@@ -269,6 +269,8 @@ function TripCard({ route, L }: { route: RouteOut; L: L }) {
 export default function RecommendationPanel(props: {
   response: AdvisoryResponse | null;
   selectedZone: ZoneEvaluation | null;
+  selectedRoute: RouteOut | null;
+  routeLoading: boolean;
   language: string;
   voice: VoiceStatus | null;
   onPickZone: (zoneId: string | null) => void;
@@ -291,7 +293,9 @@ export default function RecommendationPanel(props: {
   }
   const rec = response.recommended;
   const shown = selectedZone ?? rec;
-  const route = response.route;
+  // picked zone shows ITS route (fetched on pick); the recommended zone shows
+  // the advisory's own route — the panel renders whatever the backend sent
+  const route = props.selectedRoute ?? response.route;
   const verdict = verdictOf(response.warnings, L);
   const VIcon = verdict.icon;
   const missing: { label: string; icon: IconCmp }[] = [];
@@ -421,6 +425,7 @@ export default function RecommendationPanel(props: {
           )}
           {shown && <ZoneDetail zone={shown} L={L} />}
           {route && <TripCard route={route} L={L} />}
+          {props.routeLoading && <p className="note dim">{L.route_loading}</p>}
         </>
       )}
 

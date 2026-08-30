@@ -21,7 +21,7 @@ import { PathStyleExtension } from "@deck.gl/extensions";
 import type { PickingInfo } from "@deck.gl/core";
 import * as i18n from "../i18n";
 import { resolveBasemapStyle, PRIMARY_BASEMAP, basemapWasProbedHealthy } from "../maps/basemap";
-import type { AdvisoryResponse } from "../types";
+import type { AdvisoryResponse, RouteOut } from "../types";
 
 const INITIAL_VIEW = {
   longitude: 79.31,
@@ -41,6 +41,7 @@ export default function MapPanel(props: {
   response: AdvisoryResponse | null;
   onPickZone: (id: string | null) => void;
   selectedZoneId: string | null;
+  routeOverride?: RouteOut | null;
   language: string;
 }) {
   const { response, selectedZoneId } = props;
@@ -79,7 +80,7 @@ export default function MapPanel(props: {
     const pts: [number, number][] = response.zones
       .filter((z) => !z.excluded)
       .map((z) => [z.candidate.lon, z.candidate.lat] as [number, number]);
-    for (const c of response.route?.coords ?? []) pts.push([c[0], c[1]]);
+    for (const c of (props.routeOverride ?? response.route)?.coords ?? []) pts.push([c[0], c[1]]);
     const ring = response.map_layers.find((f) => f.properties?.kind === "search_ring");
     if (ring?.geometry.type === "Polygon") {
       for (const [lon, lat] of (ring.geometry.coordinates as [number, number][][])[0]) pts.push([lon, lat]);
@@ -94,7 +95,7 @@ export default function MapPanel(props: {
       ],
       { padding: 56, maxZoom: 11.5, duration: 700 },
     );
-  }, [response]);
+  }, [response, props.routeOverride]);
 
   useEffect(() => {
     fitToResults();
@@ -164,7 +165,7 @@ export default function MapPanel(props: {
   // fall back to the ring origin.
   const originPos = useMemo<[number, number] | null>(() => {
     if (!response) return null;
-    const start = response.route?.coords?.[0];
+    const start = (props.routeOverride ?? response.route)?.coords?.[0];
     if (Array.isArray(start) && start.length === 2) return [start[0], start[1]];
     const ring = response.map_layers.find((f) => f.properties?.kind === "search_ring");
     const o = ring?.properties?.origin;
@@ -173,10 +174,10 @@ export default function MapPanel(props: {
   }, [response]);
 
   const routePath = useMemo(() => {
-    const r = response?.route;
+    const r = props.routeOverride ?? response?.route;
     if (!r || r.coords.length < 2) return [];
     return [{ path: r.coords, mode: r.mode, dist: r.distance_km }];
-  }, [response]);
+  }, [response, props.routeOverride]);
 
   const boundaries = useMemo(() => response?.map_layers ?? [], [response]);
 

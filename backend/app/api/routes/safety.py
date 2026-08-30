@@ -19,7 +19,9 @@ _routing: RouteOptimizationEngine | None = None
 def get_routing() -> RouteOptimizationEngine:
     global _routing
     if _routing is None:
-        _routing = RouteOptimizationEngine(_safety)
+        # match the advisory's routing configuration (2.7 km cells, 6 kn trawler)
+        # so zone-click routes read the same as the recommended-zone route
+        _routing = RouteOptimizationEngine(_safety, vessel_speed_knots=6.5, cell_deg=0.025)
     return _routing
 
 
@@ -88,6 +90,7 @@ async def optimize_route(req: OptimizeRouteRequest) -> dict:
         "estimated_time_h": round(route.estimated_time_h, 2),
         "hazard_stats": route.hazard_stats,
         "blocked_by_constraints": route.blocked_by_constraints or (not safety.ok),
+        "notes": route.notes,
         "route_safety": {
             "ok": safety.ok,
             "crosses_imbl": safety.crosses_imbl,

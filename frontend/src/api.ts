@@ -1,7 +1,7 @@
 /** Thin typed client over the ORCA FastAPI backend (same-origin via Vite proxy,
  * or VITE_API_BASE when the backend is hosted separately, e.g. Render). */
 
-import type { AdvisoryResponse, SystemStatus, VoiceStatus } from "./types";
+import type { AdvisoryResponse, RouteOut, SystemStatus, VoiceStatus } from "./types";
 
 // Deployed builds point VITE_API_BASE at the backend origin (no trailing
 // slash); local dev uses the Vite proxy and leaves it empty.
@@ -49,6 +49,24 @@ export const api = {
 
   recommendation: (requestId: string) =>
     fetch(url(`/api/recommendations/${requestId}`)).then((r) => json<AdvisoryResponse>(r)),
+
+  /** Risk-aware route from the departure point to a hand-picked zone
+   * (hard constraints absolute — the engine snaps to water on its own). */
+  optimizeRoute: (fromLat: number, fromLon: number, toLat: number, toLon: number) =>
+    fetch(url("/api/route/optimize"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from_lat: fromLat,
+        from_lon: fromLon,
+        to_lat: toLat,
+        to_lon: toLon,
+        mode: "safe",
+      }),
+    }).then(async (r) => {
+      const out = await json<Omit<RouteOut, "notes"> & { notes?: string[] }>(r);
+      return { ...out, notes: out.notes ?? [] } as RouteOut;
+    }),
 
   transcribe: async (audioBlob: Blob, language: string): Promise<string> => {
     const b64 = await blobToBase64(audioBlob);

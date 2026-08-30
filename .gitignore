@@ -43,3 +43,7 @@ Thumbs.db
 # --- Docker local volumes ---
 docker/volumes/
 uvicorn.log
+deployed*.json
+live-*.json
+local*.json
+*.output

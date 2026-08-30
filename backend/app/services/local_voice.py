@@ -106,7 +106,10 @@ class LocalVoiceEngine:
             segments, info = model.transcribe(
                 io.BytesIO(audio),
                 language=whisper_lang,
-                beam_size=1,
+                beam_size=5,
+                # short one-shot queries: carrying context across segments
+                # only invites repetition/hallucination loops
+                condition_on_previous_text=False,
                 vad_filter=True,
             )
             text = " ".join(s.text.strip() for s in segments).strip()

@@ -427,10 +427,6 @@ class ZoneEvaluationService:
             codes = ", ".join(sorted({w.code or "?" for w in official.warnings}))
             trace.steps.append(f"official warnings: {len(official.warnings)} active ({codes})")
         trace.steps.append("official warning feeds: " + "; ".join(official.notes))
-        if official.warnings:
-            codes = ", ".join(sorted({w.code or "?" for w in official.warnings}))
-            trace.steps.append(f"official warnings: {len(official.warnings)} active ({codes})")
-        trace.steps.append("official warning feeds: " + "; ".join(official.notes))
 
         recommended = best
         route_out: RouteOut | None = None

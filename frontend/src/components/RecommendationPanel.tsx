@@ -346,12 +346,24 @@ export default function RecommendationPanel(props: {
     setSpeaking(true);
     const done = () => setSpeaking(false);
     if (voice?.speak) {
-      try {
-        await api.speak(text, language, done, ac.signal);
-      } catch (e) {
-        if (!ac.signal.aborted) {
-          done();
-          alert(i18n.fmt(L.speakFail, { e: (e as Error).message }));
+      // The neural voice is fetched from the server, whose free hosting can
+      // return a transient 502 (cold start or worker restart). One automatic
+      // retry rides that out; if it still fails, speak with the device's own
+      // voice instead of showing a dead end.
+      for (let attempt = 0; attempt < 2 && !ac.signal.aborted; attempt++) {
+        try {
+          await api.speak(text, language, done, ac.signal);
+          return;
+        } catch {
+          if (ac.signal.aborted) return;
+          if (attempt === 0) {
+            await new Promise((r) => setTimeout(r, 1500));
+            continue;
+          }
+          if (!browserSpeak(text, language, done)) {
+            done();
+            alert(L.speakUnavailable);
+          }
         }
       }
       return;

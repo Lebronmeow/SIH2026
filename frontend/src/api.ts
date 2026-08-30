@@ -112,7 +112,11 @@ export const api = {
           if (currentAudio === audio) currentAudio = null;
           onEnd?.();
         };
-        audio.play();
+        audio.play().catch(() => {
+          // autoplay policy or decode failure — never leave "speaking" stuck on
+          if (currentAudio === audio) currentAudio = null;
+          onEnd?.();
+        });
         setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
       }),
 };

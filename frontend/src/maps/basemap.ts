@@ -29,6 +29,7 @@ const PROBE_X = 184;
 const PROBE_Y = 121;
 
 let resolved: string | null = null;
+let resolvedHealthy = false;
 
 async function firstTileUrl(style: unknown): Promise<string | null> {
   const sources = Object.values(
@@ -72,16 +73,28 @@ async function healthy(styleUrl: string): Promise<boolean> {
 }
 
 /** First healthy basemap style, or the last candidate so the map still
- *  mounts (better a degraded basemap than no map at all). */
+ *  mounts (better a degraded basemap than no map at all). `resolvedHealthy`
+ *  records whether ANY candidate actually passed the probe — when nothing
+ *  did, the map mounts anyway (still better than no map) but the UI must
+ *  say so instead of showing a silent black canvas. */
 export async function resolveBasemapStyle(): Promise<string> {
   if (resolved) return resolved;
   for (const styleUrl of CANDIDATES) {
     if (await healthy(styleUrl)) {
       resolved = styleUrl;
+      resolvedHealthy = true;
       return resolved;
     }
     console.warn("basemap unhealthy, falling back:", styleUrl);
   }
   resolved = CANDIDATES[0];
+  resolvedHealthy = false;
   return resolved;
+}
+
+/** True when the mounted style was verified healthy by the probe chain.
+ *  False ⇒ every candidate failed (network-level tile block) and the map is
+ *  running on an unverified style — the UI must surface that. */
+export function basemapWasProbedHealthy(): boolean {
+  return resolvedHealthy;
 }

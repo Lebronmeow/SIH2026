@@ -20,7 +20,7 @@ import { ScatterplotLayer, PathLayer, GeoJsonLayer, TextLayer } from "@deck.gl/l
 import { PathStyleExtension } from "@deck.gl/extensions";
 import type { PickingInfo } from "@deck.gl/core";
 import * as i18n from "../i18n";
-import { resolveBasemapStyle, PRIMARY_BASEMAP } from "../maps/basemap";
+import { resolveBasemapStyle, PRIMARY_BASEMAP, basemapWasProbedHealthy } from "../maps/basemap";
 import type { AdvisoryResponse } from "../types";
 
 const INITIAL_VIEW = {
@@ -58,7 +58,7 @@ export default function MapPanel(props: {
     resolveBasemapStyle().then((url) => {
       if (cancelled) return;
       setMapStyle(url);
-      setBasemapDegraded(url !== PRIMARY_BASEMAP);
+      setBasemapDegraded(url !== PRIMARY_BASEMAP || !basemapWasProbedHealthy());
     });
     return () => {
       cancelled = true;

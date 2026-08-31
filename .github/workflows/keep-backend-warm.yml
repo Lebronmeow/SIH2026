@@ -1,0 +1,42 @@
+# Keeps the free-tier Render backend from spinning down. Free instances
+# sleep after 15 minutes without traffic, and the next visitor then waits
+# ~1 minute for the cold start. A tiny GET on the lightweight status
+# endpoint every 5 minutes resets that idle timer.
+#
+# Disable it from the Actions tab ("Keep backend warm" → ⋯ → Disable
+# workflow) if you ever WANT the service to sleep, or when a paid plan
+# removes the idle spin-down.
+name: Keep backend warm
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: # manual "Run workflow" button for testing
+
+# never stack two pings
+concurrency:
+  group: keep-backend-warm
+  cancel-in-progress: false
+
+permissions: {} # read-only repo; the job only makes an outbound request
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping status endpoint
+        env:
+          URL: https://orca-backend-whvh.onrender.com/api/system/status
+        run: |
+          ping() { curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$URL" || echo 000; }
+          code=$(ping)
+          # 000 usually means a cold start blew past 90 s — give it a moment
+          # and confirm the instance actually woke
+          if [ "$code" = "000" ]; then
+            sleep 20
+            code=$(ping)
+          fi
+          echo "GET /api/system/status -> $code"
+          # any HTTP answer means the instance is up; never fail the run on
+          # a 5xx — the ping's job is to keep the service warm, not to gate CI

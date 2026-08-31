@@ -1186,3 +1186,177 @@ button.link svg {
   .map-container .maplibregl-ctrl-bottom-right { right: 8px; }
   .map-container .maplibregl-ctrl-bottom-left { left: 8px; }
 }
+
+/* ---------------------------------------------- zone comparison mini-charts
+   Emphasis form: recommended zone in accent green, the rest in one
+   de-emphasis gray (validated: CVD ΔE 18.4/19.8 protan/tritan, normal-vision
+   21.2 vs the green; the ranked list right above is the table-view relief
+   for the gray's low contrast). Thin 10px bars, rounded data-end only,
+   square baseline; solid hairline gridlines; no legend — each panel's title
+   names its single series. Rows are buttons driving the same zone pick. */
+.zone-chart {
+  margin: 6px 0 10px;
+  --thr: 50%;
+}
+
+.zc-head {
+  display: grid;
+  grid-template-columns: 24px 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.zc-head-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--ink-dim);
+  text-align: left;
+}
+
+ol.zc-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.zc-rows button {
+  display: grid;
+  grid-template-columns: 24px 1fr 1fr;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 4px 5px;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 30px;
+  font: inherit;
+  text-align: left;
+}
+
+.zc-rows button:hover { background: rgba(255, 255, 255, 0.55); }
+
+.zc-rows li.active button {
+  background: var(--glass-well);
+  outline: 1px solid var(--rule-strong);
+}
+
+.zc-rank {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-dim);
+  text-align: center;
+  min-width: 18px;
+  border-radius: 4px;
+  padding: 1px 2px;
+}
+
+.zc-rows li.active .zc-rank {
+  background: var(--green);
+  color: #ffffff;
+}
+
+.zc-cell {
+  position: relative;
+  height: 20px;
+}
+
+/* hairline gridlines: baseline, mid, end — solid, one step off surface */
+.zc-cell::before {
+  content: "";
+  position: absolute;
+  inset: 3px auto 3px 0;
+  width: 1px;
+  background: var(--rule-strong);
+}
+
+.zc-cell::after {
+  content: "";
+  position: absolute;
+  inset: 3px auto 3px 50%;
+  width: 1px;
+  background: var(--rule);
+}
+
+/* rough-sea threshold: 2px status line at 2.5 m on the wave scale only —
+   paired with the "2.5 m" tag in the axis row, never color-alone */
+.zc-cell.wave::before {
+  left: var(--thr);
+  width: 2px;
+  background: var(--red);
+}
+
+.zc-cell.wave::after {
+  content: none;
+}
+
+.zc-bar {
+  position: absolute;
+  top: 5px;
+  height: 10px;
+  left: 0;
+  border-radius: 0 4px 4px 0; /* rounded data-end, square baseline */
+  background: var(--blue);    /* wave bars: single hue, one series */
+  max-width: 100%;
+}
+
+.zc-bar.acc {
+  background: var(--green);   /* recommended — the emphasis hue */
+}
+
+.zc-cell:not(.wave) .zc-bar:not(.acc) { background: #7f94a3; }
+
+.zc-val {
+  position: absolute;
+  top: 5px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.zc-val.in {
+  top: 6px;
+  color: #ffffff; /* label inside a dark fill → white per luminance rule */
+  transform: translateX(-100%);
+  padding-right: 4px;
+}
+
+.zc-miss {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+
+.zc-axis {
+  display: grid;
+  grid-template-columns: 24px 1fr 1fr;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.zc-axis-span {
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-faint);
+}
+
+/* the 2.5 m tag sits on the wave axis at the threshold position */
+.zc-axis-span.wave em {
+  position: absolute;
+  left: var(--thr);
+  transform: translateX(-50%);
+  font-style: normal;
+  font-weight: 700;
+  color: var(--red);
+}

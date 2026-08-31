@@ -9,6 +9,7 @@ import type { ComponentType } from "react";
 import { api, stopSpeak } from "../api";
 import { browserSpeak, browserStop } from "../speech";
 import * as i18n from "../i18n";
+import ZoneCharts from "./ZoneCharts";
 import {
   AlertTriangleIcon, BanIcon, CheckCircleIcon, ClockIcon, CompassIcon,
   CurrentIcon, LeafIcon, PinIcon, StopSoundIcon, SpeakerIcon, TempIcon,
@@ -475,6 +476,13 @@ export default function RecommendationPanel(props: {
                 })}
               </ol>
               <p className="section-hint dim">{L.rankHint}</p>
+              <ZoneCharts
+                zones={response.zones}
+                recommendedId={rec?.candidate.id}
+                selectedId={selectedZone?.candidate.id}
+                onPickZone={props.onPickZone}
+                L={L}
+              />
             </>
           )}
 

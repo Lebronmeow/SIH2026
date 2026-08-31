@@ -26,6 +26,45 @@ and never fabricates a wave height. It calls tools; the tools compute; every num
 carries provenance (`source`, `dataset`, `retrieved_at`, `valid_time`, `unit`,
 `confidence`, `mode`). When data is missing, ORCA says **“INSUFFICIENT_DATA”**.
 
+## Why ORCA is different (the selling point)
+
+Ask a general-purpose LLM “is it safe to fish off Rameswaram tomorrow?” and it will
+answer confidently — inventing wave heights, recalling boundaries from memory,
+guessing a confidence score. In a life-at-sea domain that confidence is the bug.
+ORCA is engineered around the opposite premise:
+
+| Typical "AI fishing advisor" | ORCA |
+| --- | --- |
+| LLM generates the answer, numbers included | LLM only orchestrates and explains — **deterministic engines compute every number** from real data |
+| Boundaries recalled from model memory (often wrong) | IMBL treaty line, MPA/restricted polygons and land are **hard geofences enforced below the LLM** — it cannot argue its way across |
+| “Waves ~1–2 m” (fabricated) | Every value carries **source, dataset, retrieval + valid time, unit and quality flag** — provenance or it doesn't ship |
+| Missing data → confident guess | Missing data → **honest `MISSING` / `INSUFFICIENT_DATA`**; stale data → CACHED badge with the true observation date |
+| One provider, one point of failure | **Fallback chains, circuit breakers, 429-aware retries, caches** — and the last real field served honestly labelled for 72 h |
+| English text wall | **Voice in/out, 8 Indian languages**, GO / CAREFUL / STOP verdict plates built for low-literacy users |
+| Unverifiable output | **Evidence records** (claim → basis → computation) + workflow trace + 37 offline tests incl. the 8 mandated critical ones |
+
+One sentence: **the ocean's numbers come from satellites and models, the engines do
+the science, the boundaries are law, the AI explains — and when the data isn't there,
+ORCA tells the fisherman the truth instead of a confident guess.**
+
+## Core features
+
+- 🗣 **Ask anything, in your language** — natural-language or voice queries; replies
+  natively in 8 Indian languages (English, Tamil, Telugu, Malayalam, Hindi, Bengali,
+  Odia, Gujarati); read-aloud on every advisory.
+- 🎯 **Ranked fishing zones** — 12 distance/bearing-ring candidates scored on SST and
+  chlorophyll fronts, hazards and currents; every zone carries its own verdict and
+  hazard flags; full scrollable ranking, not just the winner.
+- 🛑 **Safety that cannot be overridden** — IMBL proximity, protected areas, land
+  masking; per-zone rough-sea/strong-wind cautions; official cyclone and high-wave
+  alerts (GDACS + INCOIS GEMINI, IMD hook ready).
+- 🧭 **Safe routes** — A* routing in safe/shortest/fuel/risk modes that physically
+  cannot cross a hard boundary; trip card with distance, duration and max wave on path.
+- 🔍 **Evidence for every claim** — expandable evidence records and a workflow trace;
+  measurement tiles show the exact dataset and observation date behind each number.
+- 🛰 **Real data, resilient by design** — NOAA/PacIOOS/INCOIS/Open-Meteo provider chains
+  with failover, caching and honest staleness labelling (see workflow below).
+
 ## Workflow
 
 The full pipeline of one query — every box is real code in this repo:

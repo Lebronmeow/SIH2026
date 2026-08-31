@@ -10,7 +10,11 @@ name: Keep backend warm
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    # Every 5 min, but OFFSET off the :00/:05/:10… boundaries: GitHub's
+    # scheduler drops occurrences under load (documented), and those
+    # boundaries are the most contended. An offset list dodges the crowd —
+    # this is why an earlier "*/5" schedule never fired a single run.
+    - cron: "2-57/5 * * * *"
   workflow_dispatch: # manual "Run workflow" button for testing
 
 # never stack two pings

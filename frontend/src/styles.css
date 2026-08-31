@@ -1187,6 +1187,47 @@ button.link svg {
   .map-container .maplibregl-ctrl-bottom-left { left: 8px; }
 }
 
+/* Phones — the 1024 layout still overflows at ~375px: the topbar's nowrap
+ * subtitle has a flex automatic min-size equal to its full text width (so it
+ * can never ellipsize and instead inflates the whole grid track), and the
+ * pinned region chip + wide brand tracking leave no give. Give every row
+ * permission to wrap and shrink instead. */
+@media (max-width: 640px) {
+  .topbar {
+    padding: 8px 12px;
+    gap: 6px 10px;
+    min-width: 0;
+  }
+
+  .topbar-brand {
+    flex: 1 1 100%; /* brand line gets its own row */
+    gap: 8px;
+  }
+
+  .topbar-sub {
+    min-width: 0; /* nowrap text must be allowed to ellipsize */
+    font-size: 10.5px;
+  }
+
+  .brand {
+    font-size: 16px;
+    letter-spacing: 3px;
+  }
+
+  .topbar .region-chip {
+    margin-left: 0;
+  }
+
+  .topbar-lang {
+    flex: 1 1 auto; /* shares the second row with the region chip */
+    min-width: 150px;
+  }
+
+  .panel {
+    padding: 12px 12px 16px;
+  }
+}
+
 /* ---------------------------------------------- zone comparison mini-charts
    Emphasis form: recommended zone in accent green, the rest in one
    de-emphasis gray (validated: CVD ΔE 18.4/19.8 protan/tritan, normal-vision

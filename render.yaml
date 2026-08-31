@@ -16,9 +16,14 @@ services:
       # Update after the frontend deploy: add your vercel.app origin here.
       - key: ORCA_CORS_ORIGINS
         value: '["http://localhost:5173"]'
+      # LLM reasoning — Gemini free tier via its OpenAI-compatible endpoint.
+      # The API key is the only secret: Render prompts for it once (sync:false);
+      # it is NEVER committed here.
       - key: ORCA_LLM_PROVIDER
-        sync: false
-      - key: ORCA_LLM_API_KEY
-        sync: false
+        value: openai-compatible
       - key: ORCA_LLM_MODEL
+        value: gemini-3.5-flash-lite
+      - key: ORCA_LLM_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai
+      - key: ORCA_LLM_API_KEY
         sync: false

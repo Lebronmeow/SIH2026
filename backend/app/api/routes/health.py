@@ -43,3 +43,48 @@ def system_status() -> dict[str, object]:
         },
         "sources": registry.to_public_json(),
     }
+
+
+@router.get("/system/warm")
+async def system_warm() -> dict[str, object]:
+    """Keep-alive target for the 5-minute pinger.
+
+    A free-tier host forgets everything on restart, so a ping that only
+    wakes the process leaves the data caches cold — the next fisherman then
+    waits on every provider at once, and a throttled source shows up as
+    MISSING. Pointing the ping HERE instead refreshes the last-good fields
+    for every pilot variable while it warms the instance, so outages are
+    bridged from recently retrieved REAL data instead of silence. Never
+    raises: a failed refresh is reported, not thrown.
+    """
+    import asyncio
+    from datetime import datetime, timezone
+
+    from app.providers.hub import get_hub
+    from app.schemas.common import BoundingBox
+
+    settings = get_settings()
+    hub = get_hub()
+    bbox = BoundingBox(
+        south=settings.supported_region_south,
+        north=settings.supported_region_north,
+        west=settings.supported_region_west,
+        east=settings.supported_region_east,
+    )
+    now = datetime.now(timezone.utc)
+    variables = ["sst", "chlorophyll", "wave_height", "wind_u", "wind_v", "current_u", "current_v"]
+
+    async def _one(variable: str) -> str:
+        try:
+            field = await hub.get_field(variable, bbox, now)
+            return "missing" if field.is_empty else "ok"
+        except Exception:  # noqa: BLE001 — warming must never fail the ping
+            return "missing"
+
+    results = dict(zip(variables, await asyncio.gather(*(_one(v) for v in variables))))
+    return {
+        "status": "ok",
+        "fields": results,
+        "ok": sum(1 for v in results.values() if v != "missing"),
+        "total": len(variables),
+    }

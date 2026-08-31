@@ -176,7 +176,9 @@ class LLMQueryParser:
         except Exception:  # noqa: BLE001 — LLM unavailable: fall back, never fail
             return await self.fallback.parse(text)
 
-        parsed = ParsedQuery(raw_text=text, intent=data.get("intent", "find_safe_productive_zone"))
+        # the model may legally return null for any key (it was told it may)
+        # — never let a null intent crash ParsedQuery validation
+        parsed = ParsedQuery(raw_text=text, intent=data.get("intent") or "find_safe_productive_zone")
         if data.get("distance_km") is not None:
             try:
                 parsed.distance_km = float(data["distance_km"])

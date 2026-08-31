@@ -45,6 +45,9 @@ _FAILURE_TTL_S = 600.0
 # real data — served with its ORIGINAL provenance (true valid_time and
 # retrieved_at) plus an explicit note. Beyond this horizon it is no longer
 # representative of today's ocean and the advisory reports MISSING instead.
+# It is also persisted to the cache directory: a free-tier host restarts
+# between requests more often than anyone would like, and a memory-only
+# cache would forget every successful retrieval on each restart.
 _LAST_GOOD_TTL_S = 72 * 3600.0
 
 
@@ -73,6 +76,7 @@ class OceanDataHub:
             logger.info("hub: DEMO mode (cached data pack)")
         self._failures: dict[tuple[str, str], float] = {}
         self._last_good: dict[str, OceanField] = {}
+        self._cache_dir = settings.cache_dir
 
     @staticmethod
     def _load_servers(path) -> list[tuple[str, dict]]:
@@ -189,12 +193,54 @@ class OceanDataHub:
     # ------------------------------------------------------------ last-good
     def _remember(self, variable: str, field: OceanField) -> None:
         """Record a successful field so an outage can still be served the
-        last REAL observations (honestly labeled) instead of a bare MISSING."""
+        last REAL observations (honestly labeled) instead of a bare MISSING.
+        Also persisted to disk so a process restart (free-tier hosts restart
+        often) does not forget it."""
         self._last_good[variable] = field
+        path = self._cache_dir / f"last_good_{variable}.json"
+        try:
+            payload = {
+                "variable": field.variable,
+                "unit": field.unit,
+                "bbox": field.bbox.model_dump(mode="json") if field.bbox else None,
+                "provenance": field.provenance.model_dump(mode="json"),
+                "data": field.data.to_dict(),
+            }
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
+            tmp.replace(path)  # atomic — a crash mid-write never corrupts the cache
+        except Exception:  # noqa: BLE001 — persistence must never break the request
+            logger.debug("last-good persist failed for %s", variable, exc_info=True)
+
+    def _load_persisted(self, variable: str) -> OceanField | None:
+        path = self._cache_dir / f"last_good_{variable}.json"
+        if not path.exists():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            bbox = BoundingBox.model_validate(payload["bbox"]) if payload.get("bbox") else None
+            return OceanField(
+                variable=payload["variable"],
+                unit=payload["unit"],
+                data=xr.DataArray.from_dict(payload["data"]),
+                provenance=Provenance.model_validate(payload["provenance"]),
+                bbox=bbox,
+            )
+        except Exception:  # noqa: BLE001 — a corrupt cache file is not fatal
+            logger.debug("last-good load failed for %s", variable, exc_info=True)
+            return None
 
     def _serve_cached(self, variable: str) -> OceanField | None:
         cached = self._last_good.get(variable)
-        if cached is None or cached.is_empty or cached.provenance.valid_time is None:
+        if cached is None:
+            # memory empty (fresh process) — recover the last good field from disk
+            cached = self._load_persisted(variable)
+            if cached is None:
+                return None
+            self._last_good[variable] = cached
+        elif cached.is_empty or cached.provenance.valid_time is None:
+            return None
+        if cached.provenance.valid_time is None or cached.is_empty:
             return None
         vt = cached.provenance.valid_time
         if vt.tzinfo is None:
@@ -207,3 +253,16 @@ class OceanDataHub:
         prov.notes = f"{prov.notes}; {note}" if prov.notes else note
         logger.info("field %s served from last-good cache (%.1f h old)", variable, age_s / 3600.0)
         return replace(cached, provenance=prov)
+
+
+_HUB_SINGLETON: OceanDataHub | None = None
+
+
+def get_hub() -> OceanDataHub:
+    """Process-wide hub. The advisory pipeline used to build a hub per call,
+    which emptied the last-good cache (and reset the failure breaker) between
+    requests — a cache only works if it outlives a single request."""
+    global _HUB_SINGLETON
+    if _HUB_SINGLETON is None:
+        _HUB_SINGLETON = OceanDataHub()
+    return _HUB_SINGLETON

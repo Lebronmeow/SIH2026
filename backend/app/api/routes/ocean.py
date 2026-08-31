@@ -9,19 +9,10 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.config.registry import registry
 from app.config.settings import get_settings
-from app.providers.hub import OceanDataHub
+from app.providers.hub import get_hub
 from app.schemas.common import BoundingBox, Provenance, QualityFlag
 
 router = APIRouter(prefix="/api/ocean", tags=["ocean"])
-
-_HUB: OceanDataHub | None = None
-
-
-def get_hub() -> OceanDataHub:
-    global _HUB
-    if _HUB is None:
-        _HUB = OceanDataHub()
-    return _HUB
 
 
 @router.get("/point")

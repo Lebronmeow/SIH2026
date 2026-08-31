@@ -60,3 +60,22 @@ def test_cached_field_without_valid_time_is_refused() -> None:
 
 def test_no_cache_means_none_not_crash() -> None:
     assert _hub()._serve_cached("chlorophyll") is None
+
+
+def test_cache_survives_process_restart_via_disk(tmp_path) -> None:
+    """A free-tier host restarts between requests; the last good field must
+    survive by persisting to the cache directory (this is the exact failure
+    that made chlorophyll vanish on Render after every redeploy)."""
+    hub1 = _hub()
+    hub1._cache_dir = tmp_path
+    hub1._remember("chlorophyll", _field(age_h=2.0))
+
+    hub2 = _hub()  # a brand-new instance — empty memory, same disk
+    hub2._cache_dir = tmp_path
+    assert hub2._last_good == {}
+    out = hub2._serve_cached("chlorophyll")
+    assert out is not None and not out.is_empty
+    assert "last successful retrieval" in (out.provenance.notes or "")
+    assert out.provenance.source_id == "erddap-noaa-nws"
+    # and it re-populates memory for the next request
+    assert "chlorophyll" in hub2._last_good

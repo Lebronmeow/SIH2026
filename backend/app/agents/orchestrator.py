@@ -135,6 +135,12 @@ def build_advisory_workflow(hub=None, language: str = "en") -> Any:
 async def run_advisory(raw_text: str, hub=None, request_id: str | None = None, language: str = "en"):
     """Run the advisory through the MAF graph when available, else directly."""
     request_id = request_id or uuid.uuid4().hex[:12]
+    if hub is None:
+        # the process-wide hub: a fresh hub per call would empty the last-good
+        # cache (and reset the failure breaker) between requests
+        from app.providers.hub import get_hub
+
+        hub = get_hub()
     wf = build_advisory_workflow(hub, language=language)
     if wf is not None:
         result = await wf.run(raw_text)

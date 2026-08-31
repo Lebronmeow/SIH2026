@@ -6,7 +6,9 @@ or a switch of server never requires a code change. Unknown/missing entries
 cause providers to report ``QualityFlag.MISSING`` — they never silently fall
 back to a different variable or fabricated numbers.
 
-JSON shape::
+JSON shape — a value is ONE entry or a LIST of entries (a fallback chain in
+priority order; the hub tries servers in their configured priority and each
+server serves the first chain entry it hosts)::
 
     {
       "sst": {
@@ -18,6 +20,7 @@ JSON shape::
         "unit": "degree_C",
         "spatial_resolution": "0.01°"
       },
+      "chlorophyll": [ { "…primary…" }, { "…fallback…" } ],
       ...
     }
 """
@@ -48,17 +51,23 @@ class DatasetEntry(BaseModel):
 
 
 class DatasetCatalog:
-    def __init__(self, entries: dict[str, DatasetEntry]) -> None:
+    def __init__(self, entries: dict[str, list[DatasetEntry]]) -> None:
         self._entries = entries
 
     def get(self, key: str) -> DatasetEntry | None:
-        return self._entries.get(key)
+        """Primary (first) entry for a logical variable."""
+        chain = self._entries.get(key)
+        return chain[0] if chain else None
+
+    def chain(self, key: str) -> list[DatasetEntry]:
+        """All entries for a variable, priority order (fallback chain)."""
+        return list(self._entries.get(key, []))
 
     def keys(self) -> list[str]:
         return sorted(self._entries)
 
     def all(self) -> list[DatasetEntry]:
-        return list(self._entries.values())
+        return [e for chain in self._entries.values() for e in chain]
 
 
 def load_catalog(path: Path | None = None) -> DatasetCatalog:
@@ -68,10 +77,11 @@ def load_catalog(path: Path | None = None) -> DatasetCatalog:
         logger.warning("Dataset catalog not found at %s — no datasets configured.", cfg_path)
         return DatasetCatalog({})
     raw = json.loads(cfg_path.read_text(encoding="utf-8"))
-    entries: dict[str, DatasetEntry] = {}
+    entries: dict[str, list[DatasetEntry]] = {}
     for key, item in raw.get("datasets", {}).items():
-        if not isinstance(item, dict):
-            continue
-        entries[key] = DatasetEntry(key=key, **item)
+        items = item if isinstance(item, list) else [item]
+        parsed = [DatasetEntry(key=key, **it) for it in items if isinstance(it, dict)]
+        if parsed:
+            entries[key] = parsed
     logger.info("Loaded %d dataset mappings from %s", len(entries), cfg_path)
     return DatasetCatalog(entries)

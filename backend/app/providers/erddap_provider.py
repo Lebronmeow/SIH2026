@@ -62,6 +62,35 @@ _PROBE_TIMEOUT_S = 2.0
 _host_down_at: dict[str, float] = {}
 _host_probe_ok_at: dict[str, float] = {}
 
+# Process-level griddap subset cache. Public ERDDAPs throttle per-IP request
+# BURSTS (coastwatch.noaa.gov 429s the third-plus back-to-back subset while
+# the same request 200s when spaced out), and a user asking twice with the
+# same origin re-fetches an identical daily window. A short-TTL cache of the
+# canonicalized subset Datasets both dedups those repeats and keeps a single
+# advisory under the throttle threshold. Values are never mutated by callers
+# (downstream slicing copies).
+_SUBSET_CACHE_TTL_S = 1800.0
+_subset_cache: dict[tuple, tuple[float, xr.Dataset]] = {}
+_SUBSET_CACHE_MAX = 24  # small bbox windows (~100 KB each) — evict oldest
+
+
+def _subset_cache_get(key: tuple) -> xr.Dataset | None:
+    hit = _subset_cache.get(key)
+    if hit is None:
+        return None
+    stored_at, ds = hit
+    if (time.monotonic() - stored_at) > _SUBSET_CACHE_TTL_S:
+        _subset_cache.pop(key, None)
+        return None
+    return ds
+
+
+def _subset_cache_put(key: tuple, ds: xr.Dataset) -> None:
+    if len(_subset_cache) >= _SUBSET_CACHE_MAX:
+        oldest = min(_subset_cache, key=lambda k: _subset_cache[k][0])
+        _subset_cache.pop(oldest, None)
+    _subset_cache[key] = (time.monotonic(), ds)
+
 
 def _is_transport_failure(exc: BaseException) -> bool:
     """True when an exception chain says 'the network failed', False when the
@@ -103,14 +132,27 @@ def _install_erddapy_default_headers() -> None:
         # generous for a reachable host; 25 s still covers a real griddap
         # subset of our small bboxes (typically 2-5 s).
         timeout = kwargs.pop("timeout", (3, 25))
-        response = _requests.get(
-            url,
-            allow_redirects=True,
-            auth=auth,
-            timeout=timeout,
-            headers=_USER_AGENT,
-            **kwargs,
-        )
+        response = None
+        for attempt in range(3):
+            response = _requests.get(
+                url,
+                allow_redirects=True,
+                auth=auth,
+                timeout=timeout,
+                headers=_USER_AGENT,
+                **kwargs,
+            )
+            # public ERDDAPs throttle bursts with 429 "too busy" (observed on
+            # coastwatch.noaa.gov: the SAME request 200s seconds later). A
+            # couple of patient retries turns that flicker into a fetch.
+            if response.status_code not in (429, 502, 503) or attempt == 2:
+                break
+            retry_after = response.headers.get("Retry-After", "")
+            try:
+                delay = min(float(retry_after), 8.0)
+            except ValueError:
+                delay = 4.0 * (attempt + 1)
+            time.sleep(delay)
         try:
             response.raise_for_status()
         except _requests.exceptions.HTTPError as err:
@@ -286,14 +328,16 @@ class ErddapProvider(OceanDataProvider):
 
     # ----------------------------------------------------------------- entry
     def _entry(self, variable: str) -> DatasetEntry | None:
-        entry = self.catalog.get(variable)
-        if entry is None or entry.provider != "erddap" or not entry.dataset_id:
-            return None
-        if entry.source_id != self.source_id:
-            # this server doesn't host the variable — let the hub fall through
-            # to the provider that does (never 404-spam other servers)
-            return None
-        return entry
+        # the catalog chain lists fallbacks in priority order; this server
+        # serves the first entry it actually hosts. Servers without a chain
+        # hit return None so the hub falls through (never 404-spam others).
+        for entry in self.catalog.chain(variable):
+            if entry.provider != "erddap" or not entry.dataset_id:
+                continue
+            if entry.source_id != self.source_id:
+                continue
+            return entry
+        return None
 
     def _provenance(self, entry: DatasetEntry, valid_time: datetime) -> Provenance:
         return Provenance(
@@ -369,6 +413,16 @@ class ErddapProvider(OceanDataProvider):
         ds = e.to_xarray()
         return _canonicalize(ds)
 
+    @staticmethod
+    def _cache_key(entry: DatasetEntry, bbox: BoundingBox, valid_time: datetime) -> tuple:
+        end_hour = valid_time.replace(minute=0, second=0, microsecond=0)
+        return (
+            entry.dataset_id,
+            entry.variable,
+            end_hour.strftime("%Y%m%dT%H"),
+            round(bbox.south, 2), round(bbox.north, 2), round(bbox.west, 2), round(bbox.east, 2),
+        )
+
     async def get_field(self, variable: str, bbox: BoundingBox, valid_time: datetime) -> OceanField:
         entry = self._entry(variable)
         if entry is None:
@@ -378,10 +432,16 @@ class ErddapProvider(OceanDataProvider):
         if self._host_is_down():
             logger.info("ERDDAP host %s skipped (recent failure)", self._host_key)
             return OceanField.empty(variable, entry.unit or "unknown", prov, bbox)
+        key = self._cache_key(entry, bbox, valid_time)
+        ds = _subset_cache_get(key)
         try:
             if not await asyncio.to_thread(self._probe_host):
                 return OceanField.empty(variable, entry.unit or "unknown", prov, bbox)
-            ds = await asyncio.to_thread(self._subset_sync, entry, bbox, valid_time)
+            if ds is None:
+                ds = await asyncio.to_thread(self._subset_sync, entry, bbox, valid_time)
+                _subset_cache_put(key, ds)
+            else:
+                logger.info("ERDDAP subset cache hit: %s/%s", entry.dataset_id, entry.variable)
         except Exception as exc:  # noqa: BLE001
             if _is_transport_failure(exc):
                 self._mark_host_down()

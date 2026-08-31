@@ -14,7 +14,8 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime
+from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 import xarray as xr
@@ -38,6 +39,13 @@ logger = logging.getLogger(__name__)
 # connections until timeout) from re-taxing every request; the primary
 # source is retried after the TTL, so an outage is never permanent.
 _FAILURE_TTL_S = 600.0
+
+# Last-good cache: when EVERY live source for a variable fails (host down,
+# throttled, fully masked window), the most recent successful field is still
+# real data — served with its ORIGINAL provenance (true valid_time and
+# retrieved_at) plus an explicit note. Beyond this horizon it is no longer
+# representative of today's ocean and the advisory reports MISSING instead.
+_LAST_GOOD_TTL_S = 72 * 3600.0
 
 
 class OceanDataHub:
@@ -64,6 +72,7 @@ class OceanDataHub:
             self._demo = DemoOceanProvider(settings.demo_dir)
             logger.info("hub: DEMO mode (cached data pack)")
         self._failures: dict[tuple[str, str], float] = {}
+        self._last_good: dict[str, OceanField] = {}
 
     @staticmethod
     def _load_servers(path) -> list[tuple[str, dict]]:
@@ -148,6 +157,7 @@ class OceanDataHub:
             try:
                 field = await provider.get_field(variable, bbox, valid_time)
                 if not field.is_empty:
+                    self._remember(variable, field)
                     return field
                 # empty is the provider's degraded return for a failed
                 # subset — treat like a transport failure for the breaker
@@ -166,8 +176,34 @@ class OceanDataHub:
                 field = await self._openmeteo.get_field(variable, bbox, valid_time)
                 if not field.is_empty:
                     logger.info("field %s served by open-meteo fallback grid", variable)
+                    self._remember(variable, field)
                     return field
             except Exception as exc:  # noqa: BLE001
                 logger.warning("open-meteo field fallback for %s failed: %s", variable, exc)
+        cached = self._serve_cached(variable)
+        if cached is not None:
+            return cached
         prov = Provenance(source_id="none", source_name="unconfigured", mode=self.mode)
         return OceanField.empty(variable=variable, unit="unknown", provenance=prov, bbox=bbox)
+
+    # ------------------------------------------------------------ last-good
+    def _remember(self, variable: str, field: OceanField) -> None:
+        """Record a successful field so an outage can still be served the
+        last REAL observations (honestly labeled) instead of a bare MISSING."""
+        self._last_good[variable] = field
+
+    def _serve_cached(self, variable: str) -> OceanField | None:
+        cached = self._last_good.get(variable)
+        if cached is None or cached.is_empty or cached.provenance.valid_time is None:
+            return None
+        vt = cached.provenance.valid_time
+        if vt.tzinfo is None:
+            vt = vt.replace(tzinfo=timezone.utc)
+        age_s = (datetime.now(timezone.utc) - vt).total_seconds()
+        if age_s < 0 or age_s > _LAST_GOOD_TTL_S:
+            return None
+        prov = cached.provenance.model_copy(deep=True)
+        note = "live source unreachable — values from the last successful retrieval"
+        prov.notes = f"{prov.notes}; {note}" if prov.notes else note
+        logger.info("field %s served from last-good cache (%.1f h old)", variable, age_s / 3600.0)
+        return replace(cached, provenance=prov)

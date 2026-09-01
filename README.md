@@ -2,7 +2,7 @@
 
 **SIH26176** — an agentic marine decision-support prototype for Indian fishermen.
 
-**Live:** frontend <https://sih.lebronpereira.in> · backend <https://orca-backend-whvh.onrender.com> (API reference at `/docs`)
+**Live:** <https://sih.lebronpereira.in>
 
 Ask in natural language or voice:
 
